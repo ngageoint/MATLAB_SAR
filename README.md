@@ -2,7 +2,7 @@
 MATLAB SAR Toolbox is a basic MATLAB library to read/write/display SAR data in the NGA SICD format
 
 ### Origin
-MATLAB SAR was developed at the National Geospatial-Intelligence Agency (NGA). The government has "unlimited rights" and is releasing this software to increase the impact of government investments by providing developers with the opportunity to take things in new directions. The software use, modification, and distribution rights are stipulated within the MIT license.
+MATLAB SAR was developed at the National Geospatial-Intelligence Agency (NGA). The software use, modification, and distribution rights are stipulated within the MIT license.
 
 ### Pull Requests
 
