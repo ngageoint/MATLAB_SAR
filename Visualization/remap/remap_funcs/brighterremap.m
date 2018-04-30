@@ -1,0 +1,12 @@
+function out = brighterremap(x)
+% BRIGHTERREMAP Brighter set of parameters for density remap
+%
+% //////////////////////////////////////////
+% /// CLASSIFICATION: UNCLASSIFIED       ///
+% //////////////////////////////////////////
+
+    out = uint8( amplitudetodensity(x,60,40) );
+end
+% //////////////////////////////////////////
+% /// CLASSIFICATION: UNCLASSIFIED       ///
+% //////////////////////////////////////////

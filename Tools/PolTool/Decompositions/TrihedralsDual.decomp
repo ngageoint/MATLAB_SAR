@@ -1,0 +1,14 @@
+RedTxAngle = 90
+RedTxEllip = 0
+RedRxAngle = 30
+RedRxEllip = -25
+
+GreenTxAngle = 90
+GreenTxEllip = 0
+GreenRxAngle = 150
+GreenRxEllip = 25
+
+BlueTxAngle = 90
+BlueTxEllip = 0
+BlueRxAngle = 90
+BlueRxEllip = 0

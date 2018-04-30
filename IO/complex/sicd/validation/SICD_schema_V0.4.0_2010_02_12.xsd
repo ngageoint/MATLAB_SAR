@@ -1,0 +1,1206 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" 
+   elementFormDefault="qualified" 
+   attributeFormDefault="unqualified"
+   targetNamespace="urn:SICD:0.4.0"
+   xmlns="urn:SICD:0.4.0">
+
+<!-- SICD TYPES -->
+
+   <xs:complexType name="integertype">
+      <xs:simpleContent>
+         <xs:extension base="xs:int">
+            <xs:attribute name="class" type="xs:string" use="required" fixed="xs:int"/>
+         </xs:extension>
+      </xs:simpleContent>
+   </xs:complexType>
+
+   <xs:complexType name="doubletype">
+      <xs:simpleContent>
+         <xs:extension base="xs:double">
+            <xs:attribute name="class" type="xs:string" use="required" fixed="xs:double"/>
+         </xs:extension>
+      </xs:simpleContent>
+   </xs:complexType>
+
+   <xs:complexType name="stringtype">
+      <xs:simpleContent>
+         <xs:extension base="xs:string">
+            <xs:attribute name="class" type="xs:string" use="required" fixed="xs:string"/>
+         </xs:extension>
+      </xs:simpleContent>
+   </xs:complexType>
+
+   <xs:complexType name="booleantype">
+      <xs:simpleContent>
+         <xs:extension base="xs:boolean">
+            <xs:attribute name="class" type="xs:string" use="required" fixed="xs:boolean"/>
+         </xs:extension>
+      </xs:simpleContent>
+   </xs:complexType>
+
+   <xs:complexType name="dateTimetype">
+      <xs:simpleContent>
+         <xs:extension base="xs:dateTime">
+            <xs:attribute name="class" type="xs:string" use="required" fixed="xs:dateTime"/>
+         </xs:extension>
+      </xs:simpleContent>
+   </xs:complexType>
+
+   <xs:complexType name="xyztype">
+      <xs:sequence>
+         <xs:element name="X" type="doubletype" maxOccurs="1"/>
+         <xs:element name="Y" type="doubletype" maxOccurs="1"/>
+         <xs:element name="Z" type="doubletype" maxOccurs="1"/>
+      </xs:sequence>
+   </xs:complexType>
+
+   <xs:complexType name="xyzAttributetype">
+      <xs:complexContent>
+         <xs:extension base="xyztype">
+            <xs:attribute name="name" type="xs:string" use="optional"/>
+         </xs:extension>
+      </xs:complexContent>
+   </xs:complexType>
+
+   <xs:complexType name="llhtype">
+      <xs:sequence>
+         <xs:element name="Lat" type="doubletype" maxOccurs="1"/>
+         <xs:element name="Lon" type="doubletype" maxOccurs="1"/>
+         <xs:element name="HAE" type="doubletype" maxOccurs="1"/>
+      </xs:sequence>
+   </xs:complexType>
+
+   <xs:complexType name="latlontype">
+      <xs:sequence>
+         <xs:element name="Lat" type="doubletype" maxOccurs="1"/>
+         <xs:element name="Lon" type="doubletype" maxOccurs="1"/>
+      </xs:sequence>
+   </xs:complexType>
+
+   <xs:simpleType name="cornerattrtype">
+      <xs:restriction base="xs:int">
+         <xs:minInclusive value="1"/>
+         <xs:maxInclusive value="4"/>
+      </xs:restriction>
+   </xs:simpleType>
+
+   <xs:simpleType name="cornerstringtype">
+      <xs:restriction base="xs:string">
+         <xs:enumeration value="1:FRFC"/>
+         <xs:enumeration value="2:FRLC"/>
+         <xs:enumeration value="3:LRLC"/>
+         <xs:enumeration value="4:LRFC"/>
+      </xs:restriction>
+   </xs:simpleType>
+
+   <xs:complexType name="latloncornertype">
+      <xs:sequence>
+         <xs:element name="Lat" type="doubletype" maxOccurs="1"/>
+         <xs:element name="Lon" type="doubletype" maxOccurs="1"/>
+      </xs:sequence>
+      <xs:attribute name="index" type="cornerattrtype" use="required"/>
+   </xs:complexType>
+
+   <xs:complexType name="latloncornerstringtype">
+      <xs:sequence>
+         <xs:element name="Lat" type="doubletype" maxOccurs="1"/>
+         <xs:element name="Lon" type="doubletype" maxOccurs="1"/>
+      </xs:sequence>
+      <xs:attribute name="index" type="cornerstringtype" use="required"/>
+   </xs:complexType>
+
+   <xs:complexType name="latlonhaecornertype">
+      <xs:sequence>
+         <xs:element name="Lat" type="doubletype" maxOccurs="1"/>
+         <xs:element name="Lon" type="doubletype" maxOccurs="1"/>
+         <xs:element name="HAE" type="doubletype" maxOccurs="1"/>
+      </xs:sequence>
+      <xs:attribute name="index" type="cornerattrtype" use="required"/>
+   </xs:complexType>
+
+   <xs:complexType name="llhcornerstringtype">
+      <xs:sequence>
+         <xs:element name="Lat" type="doubletype" maxOccurs="1"/>
+         <xs:element name="Lon" type="doubletype" maxOccurs="1"/>
+         <xs:element name="HAE" type="doubletype" maxOccurs="1"/>
+      </xs:sequence>
+      <xs:attribute name="index" type="cornerstringtype" use="required"/>
+   </xs:complexType>
+
+   <xs:complexType name="rowcoltype">
+      <xs:sequence>
+         <xs:element name="Row" type="integertype" maxOccurs="1"/>
+         <xs:element name="Col" type="integertype" maxOccurs="1"/>
+      </xs:sequence>
+   </xs:complexType>
+
+   <xs:complexType name="complextype">
+      <xs:sequence>
+         <xs:element name="Real" type="doubletype" maxOccurs="1"/>
+         <xs:element name="Imag" type="doubletype" maxOccurs="1"/>
+      </xs:sequence>
+   </xs:complexType>
+
+   <xs:complexType name="rowcolvertextype">
+      <xs:sequence>
+         <xs:element name="Row" type="integertype" maxOccurs="1"/>
+         <xs:element name="Col" type="integertype" maxOccurs="1"/>
+      </xs:sequence>
+      <xs:attribute name="index" type="xs:int" use="required"/>
+   </xs:complexType>
+
+   <xs:complexType name="polycoef1dtype">
+      <xs:simpleContent>
+         <xs:extension base="doubletype">
+            <xs:attribute name="exponent1" type="xs:int" use="required"/>
+         </xs:extension>
+      </xs:simpleContent>
+   </xs:complexType>
+
+   <xs:complexType name="polycoef2dtype">
+      <xs:simpleContent>
+         <xs:extension base="doubletype">
+            <xs:attribute name="exponent1" type="xs:int" use="required"/>
+            <xs:attribute name="exponent2" type="xs:int" use="required"/>
+         </xs:extension>
+      </xs:simpleContent>
+   </xs:complexType>
+
+   <xs:complexType name="poly1dtype">
+      <xs:sequence>
+         <xs:element name="Coef" type="polycoef1dtype" minOccurs="1" maxOccurs="unbounded"/>
+      </xs:sequence>
+      <xs:attribute name="order1" type="xs:int" use="required"/>
+   </xs:complexType>
+   
+   <xs:complexType name="poly2dtype">
+      <xs:sequence>
+         <xs:element name="Coef" type="polycoef2dtype" minOccurs="1" maxOccurs="unbounded"/>
+      </xs:sequence>
+      <xs:attribute name="order1" type="xs:int" use="required"/>
+      <xs:attribute name="order2" type="xs:int" use="required"/>
+   </xs:complexType>
+   
+   <xs:complexType name="xyzpolytype">
+      <xs:sequence>
+         <xs:element name="X" type="poly1dtype" maxOccurs="1"/>
+         <xs:element name="Y" type="poly1dtype" maxOccurs="1"/>
+         <xs:element name="Z" type="poly1dtype" maxOccurs="1"/>
+      </xs:sequence>
+   </xs:complexType>
+
+   <xs:complexType name="xyzpolyAttributetype">
+      <xs:complexContent>
+         <xs:extension base="xyzpolytype">
+            <xs:attribute name="index" type="xs:int" use="required"/>
+         </xs:extension>
+      </xs:complexContent>
+   </xs:complexType>
+
+   <xs:complexType name="linetype">
+      <xs:sequence>
+         <xs:element name="Endpoint" minOccurs="2" maxOccurs="unbounded">
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:element name="Lat" type="doubletype" maxOccurs="1"/>
+                  <xs:element name="Lon" type="doubletype" maxOccurs="1"/>
+               </xs:sequence>
+               <xs:attribute name="index" type="xs:int" use="required"/>
+            </xs:complexType>
+         </xs:element>
+      </xs:sequence>
+      <xs:attribute name="size" type="xs:int" use="required"/>
+   </xs:complexType>
+
+   <xs:complexType name="polygontype">
+      <xs:sequence>
+         <xs:element name="Vertex" minOccurs="3" maxOccurs="unbounded">
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:element name="Lat" type="doubletype" maxOccurs="1"/>
+                  <xs:element name="Lon" type="doubletype" maxOccurs="1"/>
+               </xs:sequence>
+               <xs:attribute name="index" type="xs:int" use="required"/>
+            </xs:complexType>
+         </xs:element>
+      </xs:sequence>
+      <xs:attribute name="size" type="xs:int" use="required"/>
+   </xs:complexType>
+
+   <xs:complexType name="arraydoubtype">
+      <xs:simpleContent>
+         <xs:extension base="doubletype">
+            <xs:attribute name="index" type="xs:int" use="required"/>
+         </xs:extension>
+      </xs:simpleContent>
+   </xs:complexType>
+
+   <xs:complexType name="parametertype">
+      <xs:simpleContent>
+         <xs:extension base="stringtype">
+            <xs:attribute name="name" type="xs:string" use="required"/>
+         </xs:extension>
+      </xs:simpleContent>
+   </xs:complexType>
+
+   <xs:complexType name="orientationtype">
+      <xs:simpleContent>
+         <xs:restriction base="stringtype">
+            <xs:enumeration value="UP"/>
+            <xs:enumeration value="DOWN"/>
+            <xs:enumeration value="LEFT"/>
+            <xs:enumeration value="RIGHT"/>
+            <xs:enumeration value="ARBITRARY"/>
+         </xs:restriction>
+      </xs:simpleContent>
+   </xs:complexType>
+
+   <xs:complexType name="polarizationtype">
+      <xs:simpleContent>
+         <xs:restriction base="stringtype">
+            <xs:enumeration value="V"/>
+            <xs:enumeration value="H"/>
+            <xs:enumeration value="RHC"/>
+            <xs:enumeration value="LHC"/>
+            <xs:enumeration value="OTHER"/>
+         </xs:restriction>
+      </xs:simpleContent>
+   </xs:complexType>
+
+   <xs:complexType name="dualpolarizationtype">
+      <xs:simpleContent>
+         <xs:restriction base="stringtype">
+            <xs:enumeration value="V:V"/>
+            <xs:enumeration value="V:H"/>
+            <xs:enumeration value="H:V"/>
+            <xs:enumeration value="H:H"/>
+            <xs:enumeration value="RHC:RHC"/>
+            <xs:enumeration value="RHC:LHC"/>
+            <xs:enumeration value="LHC:RHC"/>
+            <xs:enumeration value="LHC:LHC"/>
+            <xs:enumeration value="OTHER"/>
+         </xs:restriction>
+      </xs:simpleContent>
+   </xs:complexType>
+
+
+
+   <xs:complexType name="zeroto90type">
+      <xs:simpleContent>
+         <xs:restriction base="doubletype">
+            <xs:minInclusive value="0"/>
+            <xs:maxInclusive value="90"/>
+         </xs:restriction>
+      </xs:simpleContent>
+   </xs:complexType>
+
+   <xs:complexType name="neg90to90type">
+      <xs:simpleContent>
+         <xs:restriction base="doubletype">
+            <xs:minInclusive value="-90"/>
+            <xs:maxInclusive value="90"/>
+         </xs:restriction>
+      </xs:simpleContent>
+   </xs:complexType>
+
+   <xs:complexType name="neg180to180type">
+      <xs:simpleContent>
+         <xs:restriction base="doubletype">
+            <xs:minInclusive value="-180"/>
+            <xs:maxInclusive value="180"/>
+         </xs:restriction>
+      </xs:simpleContent>
+   </xs:complexType>
+
+
+<!-- sicd blocks -->
+   
+   <xs:complexType name="collectioninfotype">
+      <xs:sequence>
+         <xs:element name="CollectorName" type="stringtype" maxOccurs="1"/>
+         <xs:element name="IlluminatorName" type="stringtype" minOccurs="0" maxOccurs="1"/>
+         <xs:element name="CoreName" type="stringtype" maxOccurs="1"/>
+         <xs:element name="CollectType" minOccurs="0" maxOccurs="1" >
+            <xs:complexType>
+               <xs:simpleContent>
+                  <xs:restriction base="stringtype">
+                     <xs:enumeration value="MONOSTATIC"/>
+                     <xs:enumeration value="BISTATIC"/>
+                  </xs:restriction>
+               </xs:simpleContent>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="RadarMode" maxOccurs="1">
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:element name="ModeType" maxOccurs="1">
+                     <xs:complexType>
+                        <xs:simpleContent>
+                           <xs:restriction base="stringtype">
+                              <xs:enumeration value="SPOTLIGHT"/>
+                              <xs:enumeration value="STRIPMAP"/>
+                              <xs:enumeration value="DYNAMIC STRIPMAP"/>
+                           </xs:restriction>
+                        </xs:simpleContent>
+                     </xs:complexType>
+                  </xs:element>
+                  <xs:element name="ModeID" type="stringtype" minOccurs="0" maxOccurs="1"/>
+               </xs:sequence>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="Classification" type="stringtype" maxOccurs="1"/>
+         <xs:element name="CountryCode" type="stringtype" minOccurs="0" maxOccurs="unbounded"/>
+         <xs:element name="Parameter" type="parametertype" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+   </xs:complexType>
+
+   <xs:complexType name="imagecreationtype">
+      <xs:sequence>
+         <xs:element name="Application" type="stringtype" minOccurs="0" maxOccurs="1"/>
+         <xs:element name="DateTime" type="dateTimetype" minOccurs="0" maxOccurs="1"/>
+         <xs:element name="Site" type="stringtype" minOccurs="0" maxOccurs="1"/>
+         <xs:element name="Profile" type="stringtype" minOccurs="0" maxOccurs="1"/>
+      </xs:sequence>
+   </xs:complexType>
+
+   <xs:complexType name="imagedatatype">
+      <xs:sequence>
+         <xs:element name="PixelType" maxOccurs="1">
+            <xs:complexType>
+               <xs:simpleContent>
+                  <xs:restriction base="stringtype">
+                     <xs:enumeration value="RE32F_IM32F"/>
+                     <xs:enumeration value="RE16I_IM16I"/>
+                     <xs:enumeration value="AMP8I_PHS8I"/>
+                  </xs:restriction>
+               </xs:simpleContent>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="AmpTable" minOccurs="0" maxOccurs="1">
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:element name="Amplitude" type="arraydoubtype" minOccurs="1" maxOccurs="256"/>
+               </xs:sequence>
+               <xs:attribute name="size" type="xs:int" use="required"/>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="NumRows" type="integertype" maxOccurs="1"/>
+         <xs:element name="NumCols" type="integertype" maxOccurs="1"/>
+         <xs:element name="FirstRow" type="integertype" maxOccurs="1"/>
+         <xs:element name="FirstCol" type="integertype" maxOccurs="1"/>
+         <xs:element name="FullImage" maxOccurs="1">
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:element name="NumRows" type="integertype" maxOccurs="1"/>
+                  <xs:element name="NumCols" type="integertype" maxOccurs="1"/>
+               </xs:sequence>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="SCPPixel" type="rowcoltype" maxOccurs="1"/>
+         <xs:element name="ValidData" minOccurs="0" maxOccurs="1" >
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:element name="Vertex" type="rowcolvertextype" minOccurs="3" maxOccurs="unbounded"/>
+               </xs:sequence>
+               <xs:attribute name="size" type="xs:int" use="required"/>
+            </xs:complexType>
+         </xs:element>
+      </xs:sequence>
+   </xs:complexType>
+
+   <xs:complexType name="geoinfotype">
+      <xs:sequence>
+         <xs:element name="GeoInfo" type="geoinfotype" minOccurs="0" maxOccurs="unbounded"/>
+         <xs:element name="Desc" type="parametertype" minOccurs="0" maxOccurs="unbounded"/>
+         <xs:choice minOccurs="0" maxOccurs="1">
+            <xs:element name="Point" type="latlontype"/>
+            <xs:element name="Line" type="linetype"/>
+            <xs:element name="Polygon" type="polygontype"/>
+         </xs:choice>
+      </xs:sequence>
+      <xs:attribute name="name" type="xs:string" use="required"/>
+   </xs:complexType>
+
+   <xs:complexType name="geodatatype">
+      <xs:sequence>
+         <xs:element name="EarthModel" maxOccurs="1">
+            <xs:complexType>
+               <xs:simpleContent>
+                  <xs:restriction base="stringtype">
+                     <xs:enumeration value="WGS_84"/>
+                  </xs:restriction>
+               </xs:simpleContent>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="SCP" maxOccurs="1">
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:element name="ECF" type="xyztype" maxOccurs="1"/>
+                  <xs:element name="LLH" type="llhtype" maxOccurs="1"/>
+               </xs:sequence>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="ImageCorners" maxOccurs="1">
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:element name="ICP" type="latloncornerstringtype" minOccurs="4" maxOccurs="4"/>
+               </xs:sequence>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="ValidData" type="polygontype" minOccurs="0" maxOccurs="1"/>
+         <xs:element name="GeoInfo" type="geoinfotype" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+   </xs:complexType>
+
+   <xs:complexType name="dirparamtype">
+      <xs:sequence>
+         <xs:element name="UVectECF" type="xyztype" maxOccurs="1"/>
+         <xs:element name="SS" type="doubletype" maxOccurs="1"/>
+         <xs:element name="ImpRespWid" type="doubletype" maxOccurs="1"/>
+         <xs:element name="Sgn" maxOccurs="1">
+            <xs:complexType>
+               <xs:simpleContent>
+                  <xs:restriction base="integertype">
+                     <xs:enumeration value="+1"/>
+                     <xs:enumeration value="-1"/>
+                  </xs:restriction>
+               </xs:simpleContent>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="ImpRespBW" type="doubletype" maxOccurs="1"/>
+         <xs:element name="KCtr" type="doubletype" maxOccurs="1"/>
+         <xs:element name="DeltaK1" type="doubletype" maxOccurs="1"/>
+         <xs:element name="DeltaK2" type="doubletype" maxOccurs="1"/>
+         <xs:element name="DeltaKCOAPoly" type="poly2dtype" minOccurs="0" maxOccurs="1"/>
+         <xs:element name="WgtType" type="stringtype" minOccurs="0" maxOccurs="1"/>
+         <xs:element name="WgtFunct" minOccurs="0" maxOccurs="1">
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:element name="Wgt" type="arraydoubtype" minOccurs="2" maxOccurs="512"/>
+               </xs:sequence>
+               <xs:attribute name="size" type="xs:int" use="required"/>
+            </xs:complexType>
+         </xs:element>
+      </xs:sequence>
+   </xs:complexType>
+          
+   <xs:complexType name="gridtype">
+      <xs:sequence>
+         <xs:element name="ImagePlane" maxOccurs="1">
+            <xs:complexType>
+               <xs:simpleContent>
+                  <xs:restriction base="stringtype">
+                     <xs:enumeration value="SLANT"/>
+                     <xs:enumeration value="GROUND"/>
+                     <xs:enumeration value="OTHER"/>
+                  </xs:restriction>
+               </xs:simpleContent>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="Type" maxOccurs="1">
+            <xs:complexType>
+               <xs:simpleContent>
+                  <xs:restriction base="stringtype">
+                     <xs:enumeration value="RGAZIM"/>
+                     <xs:enumeration value="RGZERO"/>
+                     <xs:enumeration value="XRGYCR"/>
+                     <xs:enumeration value="XCTYAT"/>
+                     <xs:enumeration value="PLANE"/>
+                  </xs:restriction>
+               </xs:simpleContent>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="TimeCOAPoly" type="poly2dtype" maxOccurs="1"/>
+         <xs:element name="Row" type="dirparamtype" maxOccurs="1"/>
+         <xs:element name="Col" type="dirparamtype" maxOccurs="1"/>
+      </xs:sequence>
+   </xs:complexType>
+
+   <xs:complexType name="timelinetype">
+      <xs:sequence>
+         <xs:element name="CollectStart" type="dateTimetype" maxOccurs="1"/>
+         <xs:element name="CollectDuration" type="doubletype" maxOccurs="1"/>
+         <xs:element name="IPP" minOccurs="0" maxOccurs="1">
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:element name="Set" minOccurs="1" maxOccurs="unbounded">
+                     <xs:complexType>
+                        <xs:sequence>
+                           <xs:element name="TStart" type="doubletype" maxOccurs="1"/>
+                           <xs:element name="TEnd" type="doubletype" maxOccurs="1"/>
+                           <xs:element name="IPPStart" type="integertype" maxOccurs="1"/>
+                           <xs:element name="IPPEnd" type="integertype" maxOccurs="1"/>
+                           <xs:element name="IPPPoly" type="poly1dtype" maxOccurs="1"/>
+                        </xs:sequence>
+                        <xs:attribute name="index" type="xs:int" use="required"/>
+                     </xs:complexType>
+                  </xs:element>
+               </xs:sequence>
+               <xs:attribute name="size" type="xs:int" use="required"/>
+            </xs:complexType>
+         </xs:element>
+      </xs:sequence>
+   </xs:complexType>
+
+   <xs:complexType name="positiontype">
+      <xs:sequence>
+         <xs:element name="ARPPoly" type="xyzpolytype" maxOccurs="1"/>
+         <xs:element name="GRPPoly" type="xyzpolytype" minOccurs="0" maxOccurs="1"/>
+         <xs:element name="TxAPCPoly" type="xyzpolytype" minOccurs="0" maxOccurs="1"/>
+         <xs:element name="RcvAPC" minOccurs="0" maxOccurs="1">
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:element name="RcvAPCPoly" type="xyzpolyAttributetype" minOccurs="1" maxOccurs="unbounded"/>
+               </xs:sequence>
+               <xs:attribute name="size" type="xs:int" use="required"/>
+            </xs:complexType>
+         </xs:element>
+      </xs:sequence>
+   </xs:complexType>
+
+   <xs:complexType name="radarcollectiontype">
+      <xs:sequence>
+         <xs:element name="RefFreqIndex" type="integertype" minOccurs="0" maxOccurs="1"/>
+         <xs:element name="TxFrequency" maxOccurs="1">
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:element name="Min" type="doubletype" maxOccurs="1"/>
+                  <xs:element name="Max" type="doubletype" maxOccurs="1"/>
+               </xs:sequence>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="TxPolarization" type="polarizationtype" minOccurs="0" maxOccurs="1"/>
+         <xs:element name="PolarizationHVAnglePoly" type="poly1dtype" minOccurs="0" maxOccurs="1"/>
+         <xs:element name="TxSequence" minOccurs="0" maxOccurs="1">
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:element name="TxStep" minOccurs="1" maxOccurs="unbounded">
+                     <xs:complexType>
+                        <xs:sequence>
+                           <xs:element name="WFIndex" type="integertype" minOccurs="0" maxOccurs="1"/>
+                           <xs:element name="TxPolarization" type="polarizationtype" minOccurs="0" maxOccurs="1"/>
+                        </xs:sequence>
+                        <xs:attribute name="index" type="xs:int" use="required"/>
+                     </xs:complexType>
+                  </xs:element>
+               </xs:sequence>
+               <xs:attribute name="size" type="xs:int" use="required"/>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="Waveform" minOccurs="0" maxOccurs="1">
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:element name="WFParameters" minOccurs="1" maxOccurs="unbounded">
+                     <xs:complexType>
+                        <xs:sequence>
+                           <xs:element name="TxPulseLength" type="doubletype" minOccurs="0" maxOccurs="1"/>
+                           <xs:element name="TxRFBandwidth" type="doubletype" minOccurs="0" maxOccurs="1"/>
+                           <xs:element name="TxFreqStart" type="doubletype" minOccurs="0" maxOccurs="1"/>
+                           <xs:element name="TxFMRate" type="doubletype" minOccurs="0" maxOccurs="1"/>
+                           <xs:element name="RcvDemodType" minOccurs="0" maxOccurs="1">
+                              <xs:complexType>
+                                 <xs:simpleContent>
+                                    <xs:restriction base="stringtype">
+                                       <xs:enumeration value="STRETCH"/>
+                                       <xs:enumeration value="CHIRP"/>
+                                    </xs:restriction>
+                                 </xs:simpleContent>
+                              </xs:complexType>
+                           </xs:element>
+                           <xs:element name="RcvWindowLength" type="doubletype" minOccurs="0" maxOccurs="1"/>
+                           <xs:element name="ADCSampleRate" type="doubletype" minOccurs="0" maxOccurs="1"/>
+                           <xs:element name="RcvIFBandwidth" type="doubletype" minOccurs="0" maxOccurs="1"/>
+                           <xs:element name="RcvFreqStart" type="doubletype" minOccurs="0" maxOccurs="1"/>
+                           <xs:element name="RcvFMRate" type="doubletype" minOccurs="0" maxOccurs="1"/>
+                        </xs:sequence>
+                        <xs:attribute name="index" type="xs:int" use="required"/>
+                     </xs:complexType>
+                  </xs:element>
+               </xs:sequence>
+               <xs:attribute name="size" type="xs:int" use="required"/>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="RcvChannels" maxOccurs="1">
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:element name="ChanParameters" minOccurs="0" maxOccurs="unbounded">
+                     <xs:complexType>
+                        <xs:sequence>
+                           <xs:element name="RcvAPCIndex" type="integertype" minOccurs="0" maxOccurs="1"/>
+                           <xs:element name="TxRcvPolarization" type="dualpolarizationtype" minOccurs="0" maxOccurs="1"/>
+                        </xs:sequence>
+                        <xs:attribute name="index" type="xs:int" use="required"/>
+                     </xs:complexType>
+                  </xs:element>
+               </xs:sequence>
+               <xs:attribute name="size" type="xs:int" use="required"/>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="Area" minOccurs="0" maxOccurs="1">
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:element name="Corner" minOccurs="0" maxOccurs="1">
+                     <xs:complexType>
+                        <xs:sequence>
+                           <xs:element name="ACP" type="latlonhaecornertype" minOccurs="4" maxOccurs="4"/>
+                        </xs:sequence>
+                     </xs:complexType>
+                  </xs:element>
+                  <xs:element name="Plane" minOccurs="0" maxOccurs="1">
+                     <xs:complexType>
+                        <xs:sequence>
+                           <xs:element name="RefPt" maxOccurs="1">
+                              <xs:complexType>
+                                 <xs:sequence>
+                                    <xs:element name="ECF" type="xyztype" maxOccurs="1"/>
+                                    <xs:element name="Line" type="doubletype" maxOccurs="1"/>
+                                    <xs:element name="Sample" type="doubletype" maxOccurs="1"/>
+                                 </xs:sequence>
+                                 <xs:attribute name="name" type="xs:string" use="optional"/>
+                              </xs:complexType>
+                           </xs:element>
+                           <xs:element name="XDir" maxOccurs="1">
+                              <xs:complexType>
+                                 <xs:sequence>
+                                    <xs:element name="UVectECF" type="xyztype" maxOccurs="1"/>
+                                    <xs:element name="LineSpacing" type="doubletype" maxOccurs="1"/>
+                                    <xs:element name="NumLines" type="integertype" maxOccurs="1"/>
+                                    <xs:element name="FirstLine" type="integertype" maxOccurs="1"/>
+                                 </xs:sequence>
+                              </xs:complexType>
+                           </xs:element>
+                           <xs:element name="YDir" maxOccurs="1">
+                              <xs:complexType>
+                                 <xs:sequence>
+                                    <xs:element name="UVectECF" type="xyztype" maxOccurs="1"/>
+                                    <xs:element name="SampleSpacing" type="doubletype" maxOccurs="1"/>
+                                    <xs:element name="NumSamples" type="integertype" maxOccurs="1"/>
+                                    <xs:element name="FirstSample" type="integertype" maxOccurs="1"/>
+                                 </xs:sequence>
+                              </xs:complexType>
+                           </xs:element>
+                           <xs:element name="SegmentList" minOccurs="0" maxOccurs="1">
+                              <xs:complexType>
+                                 <xs:sequence>
+                                    <xs:element name="Segment" minOccurs="1" maxOccurs="unbounded">
+                                       <xs:complexType>
+                                          <xs:sequence>
+                                             <xs:element name="StartLine" type="integertype" maxOccurs="1"/>
+                                             <xs:element name="StartSample" type="integertype" maxOccurs="1"/>
+                                             <xs:element name="EndLine" type="integertype" maxOccurs="1"/>
+                                             <xs:element name="EndSample" type="integertype" maxOccurs="1"/>
+                                             <xs:element name="Identifier" type="stringtype" maxOccurs="1"/>
+                                          </xs:sequence>
+                                       <xs:attribute name="index" type="xs:int" use="required"/>
+                                       </xs:complexType>
+                                    </xs:element>
+                                 </xs:sequence>
+                                 <xs:attribute name="size" type="xs:int" use="required"/>
+                              </xs:complexType>
+                           </xs:element>
+                           <xs:element name="Orientation" type="orientationtype" maxOccurs="1"/>
+                        </xs:sequence>
+                     </xs:complexType>
+                  </xs:element>
+               </xs:sequence>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="Parameter" type="parametertype" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+   </xs:complexType>
+
+   <xs:complexType name="imageformationtype">
+      <xs:sequence>
+         <xs:element name="SegmentIdentifier" type="stringtype" minOccurs="0" maxOccurs="1"/>
+         <xs:element name="RcvChanProc" maxOccurs="1">
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:element name="NumChanProc" type="integertype" maxOccurs="1"/>
+                  <xs:element name="PRFScaleFactor" type="doubletype" minOccurs="0" maxOccurs="1"/>
+                  <xs:element name="ChanIndex" type="integertype" minOccurs="1" maxOccurs="unbounded"/>
+               </xs:sequence>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="TxRcvPolarizationProc" type="dualpolarizationtype" minOccurs="0" maxOccurs="1"/>
+         <xs:element name="ImageFormAlgo" maxOccurs="1">
+            <xs:complexType>
+               <xs:simpleContent>
+                  <xs:restriction base="stringtype">
+                     <xs:enumeration value="PFA"/>
+                     <xs:enumeration value="RMA"/>
+                     <xs:enumeration value="RGAZCOMP"/>
+                     <xs:enumeration value="OTHER"/>
+                  </xs:restriction>
+               </xs:simpleContent>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="TStartProc" type="doubletype" maxOccurs="1"/>
+         <xs:element name="TEndProc" type="doubletype" maxOccurs="1"/>
+         <xs:element name="TxFrequencyProc" maxOccurs="1">
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:element name="MinProc" type="doubletype" maxOccurs="1"/>
+                  <xs:element name="MaxProc" type="doubletype" maxOccurs="1"/>
+               </xs:sequence>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="STBeamComp" maxOccurs="1">
+            <xs:complexType>
+               <xs:simpleContent>
+                  <xs:restriction base="stringtype">
+                     <xs:enumeration value="NO"/>
+                     <xs:enumeration value="GLOBAL"/>
+                     <xs:enumeration value="SV"/>
+                  </xs:restriction>
+               </xs:simpleContent>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="ImageBeamComp" maxOccurs="1">
+            <xs:complexType>
+               <xs:simpleContent>
+                  <xs:restriction base="stringtype">
+                     <xs:enumeration value="NO"/>
+                     <xs:enumeration value="SV"/>
+                  </xs:restriction>
+               </xs:simpleContent>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="AzAutofocus" maxOccurs="1">
+            <xs:complexType>
+               <xs:simpleContent>
+                  <xs:restriction base="stringtype">
+                     <xs:enumeration value="NO"/>
+                     <xs:enumeration value="GLOBAL"/>
+                     <xs:enumeration value="SV"/>
+                  </xs:restriction>
+               </xs:simpleContent>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="RgAutofocus" maxOccurs="1">
+            <xs:complexType>
+               <xs:simpleContent>
+                  <xs:restriction base="stringtype">
+                     <xs:enumeration value="NO"/>
+                     <xs:enumeration value="GLOBAL"/>
+                     <xs:enumeration value="SV"/>
+                  </xs:restriction>
+               </xs:simpleContent>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="Processing" minOccurs="0" maxOccurs="unbounded">
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:element name="Type" type="stringtype" maxOccurs="1"/>
+                  <xs:element name="Applied" type="booleantype" maxOccurs="1"/>
+                  <xs:element name="Parameter" type="parametertype" minOccurs="0" maxOccurs="unbounded"/>
+               </xs:sequence>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="PolarizationCalibration" minOccurs="0" maxOccurs="1">
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:element name="HVAngleCompApplied" type="booleantype" maxOccurs="1"/>
+                  <xs:element name="DistortionCorrectionApplied" type="booleantype" maxOccurs="1"/>
+                  <xs:element name="Distortion" maxOccurs="1">
+                     <xs:complexType>
+                        <xs:sequence>
+                           <xs:element name="CalibrationDate" type="dateTimetype" minOccurs="0" maxOccurs="1"/>
+                           <xs:element name="A" type="doubletype" maxOccurs="1"/>
+                           <xs:element name="F1" type="complextype" maxOccurs="1"/>
+                           <xs:element name="Q1" type="complextype" maxOccurs="1"/>
+                           <xs:element name="Q2" type="complextype" maxOccurs="1"/>
+                           <xs:element name="F2" type="complextype" maxOccurs="1"/>
+                           <xs:element name="Q3" type="complextype" maxOccurs="1"/>
+                           <xs:element name="Q4" type="complextype" maxOccurs="1"/>
+                           <xs:element name="GainErrorA" type="doubletype" minOccurs="0" maxOccurs="1"/>
+                           <xs:element name="GainErrorF1" type="doubletype" minOccurs="0" maxOccurs="1"/>
+                           <xs:element name="GainErrorF2" type="doubletype" minOccurs="0" maxOccurs="1"/>
+                           <xs:element name="PhaseErrorF1" type="doubletype" minOccurs="0" maxOccurs="1"/>
+                           <xs:element name="PhaseErrorF2" type="doubletype" minOccurs="0" maxOccurs="1"/>
+                        </xs:sequence>
+                     </xs:complexType>
+                  </xs:element>
+               </xs:sequence>
+            </xs:complexType>
+         </xs:element>
+      </xs:sequence>
+   </xs:complexType>
+
+   <xs:complexType name="scpcoatype">
+      <xs:sequence>
+         <xs:element name="SCPTime" type="doubletype" maxOccurs="1"/>
+         <xs:element name="ARPPos" type="xyztype" maxOccurs="1"/>
+         <xs:element name="ARPVel" type="xyztype" maxOccurs="1"/>
+         <xs:element name="ARPAcc" type="xyztype" maxOccurs="1"/>
+         <xs:element name="SideOfTrack" maxOccurs="1">
+            <xs:complexType>
+               <xs:simpleContent>
+                  <xs:restriction base="stringtype">
+                     <xs:enumeration value="L"/>
+                     <xs:enumeration value="R"/>
+                  </xs:restriction>
+               </xs:simpleContent>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="SlantRange" type="doubletype" maxOccurs="1"/>
+         <xs:element name="GroundRange" type="doubletype" maxOccurs="1"/>
+         <xs:element name="DopplerConeAng" type="doubletype" maxOccurs="1"/>
+         <xs:element name="GrazeAng" type="zeroto90type" maxOccurs="1"/>
+         <xs:element name="IncidenceAng" type="zeroto90type" maxOccurs="1"/>
+         <xs:element name="TwistAng" type="neg90to90type" maxOccurs="1"/>
+         <xs:element name="SlopeAng" type="zeroto90type" maxOccurs="1"/>
+      </xs:sequence>
+   </xs:complexType>
+
+   <xs:complexType name="radiometrictype">
+      <xs:sequence>
+         <xs:element name="NoisePoly" type="poly2dtype" minOccurs="0" maxOccurs="1"/>
+         <xs:element name="RCSSFPoly" type="poly2dtype" minOccurs="0" maxOccurs="1"/>
+         <xs:element name="BetaZeroSFPoly" type="poly2dtype" minOccurs="0" maxOccurs="1"/>
+         <xs:element name="SigmaZeroSFPoly" type="poly2dtype" minOccurs="0" maxOccurs="1"/>
+         <xs:element name="SigmaZeroSFIncidenceMap" minOccurs="0" maxOccurs="1">
+            <xs:complexType>
+               <xs:simpleContent>
+                  <xs:restriction base="stringtype">
+                     <xs:enumeration value="APPLIED"/>
+                     <xs:enumeration value="NOT_APPLIED"/>
+                  </xs:restriction>
+               </xs:simpleContent>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="GammaZeroSFPoly" type="poly2dtype" minOccurs="0" maxOccurs="1"/>
+         <xs:element name="GammaZeroSFIncidenceMap" minOccurs="0" maxOccurs="1">
+            <xs:complexType>
+               <xs:simpleContent>
+                  <xs:restriction base="stringtype">
+                     <xs:enumeration value="APPLIED"/>
+                     <xs:enumeration value="NOT_APPLIED"/>
+                  </xs:restriction>
+               </xs:simpleContent>
+            </xs:complexType>
+         </xs:element>
+      </xs:sequence>
+   </xs:complexType>
+
+   <xs:complexType name="antparamtype">
+      <xs:sequence>
+         <xs:element name="XAxisPoly" type="xyzpolytype" maxOccurs="1"/>
+         <xs:element name="YAxisPoly" type="xyzpolytype" maxOccurs="1"/>
+         <xs:element name="FreqZero" type="doubletype" maxOccurs="1"/>
+         <xs:element name="EB" minOccurs="0" maxOccurs="1">
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:element name="DCXPoly" type="poly1dtype" maxOccurs="1"/>
+                  <xs:element name="DCYPoly" type="poly1dtype" maxOccurs="1"/>
+               </xs:sequence>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="HPBW" minOccurs="0" maxOccurs="1">
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:element name="DCX" type="doubletype" maxOccurs="1"/>
+                  <xs:element name="DCY" type="doubletype" maxOccurs="1"/>
+               </xs:sequence>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="Array" minOccurs="0" maxOccurs="1">
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:element name="GainPoly" type="poly2dtype" maxOccurs="1"/>
+                  <xs:element name="PhasePoly" type="poly2dtype" maxOccurs="1"/>
+               </xs:sequence>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="Elem" minOccurs="0" maxOccurs="1">
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:element name="GainPoly" type="poly2dtype" maxOccurs="1"/>
+                  <xs:element name="PhasePoly" type="poly2dtype" maxOccurs="1"/>
+               </xs:sequence>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="GainBSPoly" type="poly1dtype" minOccurs="0" maxOccurs="1"/>
+         <xs:element name="EBFreqShift" type="booleantype" minOccurs="0" maxOccurs="1"/>
+         <xs:element name="MLFreqDilation" type="booleantype" minOccurs="0" maxOccurs="1"/>
+      </xs:sequence>
+   </xs:complexType>
+
+   <xs:complexType name="antennatype">
+      <xs:sequence>
+         <xs:element name="Tx" type="antparamtype" minOccurs="0" maxOccurs="1"/>
+         <xs:element name="Rcv" type="antparamtype" minOccurs="0" maxOccurs="1"/>
+         <xs:element name="TwoWay" type="antparamtype" minOccurs="0" maxOccurs="1"/>
+      </xs:sequence>
+   </xs:complexType>
+
+   <xs:complexType name="errorstatisticstype">
+      <xs:sequence>
+         <xs:element name="CompositeSCP" minOccurs="0" maxOccurs="1">
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:choice>
+                     <xs:element name="RgAzErr" minOccurs="0" maxOccurs="1">
+                        <xs:complexType>
+                           <xs:sequence>
+                              <xs:element name="Rg" type="doubletype" maxOccurs="1"/>
+                              <xs:element name="Az" type="doubletype" maxOccurs="1"/>
+                              <xs:element name="RgAz" type="doubletype" maxOccurs="1"/>
+                           </xs:sequence>
+                        </xs:complexType>
+                     </xs:element>
+                     <xs:element name="RowColErr" minOccurs="0" maxOccurs="1">
+                        <xs:complexType>
+                           <xs:sequence>
+                              <xs:element name="Row" type="doubletype" maxOccurs="1"/>
+                              <xs:element name="Col" type="doubletype" maxOccurs="1"/>
+                              <xs:element name="RowCol" type="doubletype" maxOccurs="1"/>
+                           </xs:sequence>
+                        </xs:complexType>
+                     </xs:element>
+                  </xs:choice>
+               </xs:sequence>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="Components" minOccurs="0" maxOccurs="1">
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:element name="PosVelErr" minOccurs="0" maxOccurs="1">
+                     <xs:complexType>
+                        <xs:sequence>
+                           <xs:element name="Frame" maxOccurs="1">
+                              <xs:complexType>
+                                 <xs:simpleContent>
+                                    <xs:restriction base="stringtype">
+                                       <xs:enumeration value="ECF"/>
+                                       <xs:enumeration value="RIC_ECF"/>
+                                       <xs:enumeration value="RIC_ECI"/>
+                                    </xs:restriction>
+                                 </xs:simpleContent>
+                              </xs:complexType>
+                           </xs:element>
+                           <xs:element name="P1" type="doubletype" maxOccurs="1"/>
+                           <xs:element name="P2" type="doubletype" maxOccurs="1"/>
+                           <xs:element name="P3" type="doubletype" maxOccurs="1"/>
+                           <xs:element name="V1" type="doubletype" maxOccurs="1"/>
+                           <xs:element name="V2" type="doubletype" maxOccurs="1"/>
+                           <xs:element name="V3" type="doubletype" maxOccurs="1"/>
+                           <xs:element name="CorrCoefs" minOccurs="0" maxOccurs="1">
+                              <xs:complexType>
+                                 <xs:sequence>
+                                    <xs:element name="P1P2" type="doubletype" maxOccurs="1"/>
+                                    <xs:element name="P1P3" type="doubletype" maxOccurs="1"/>
+                                    <xs:element name="P1V1" type="doubletype" maxOccurs="1"/>
+                                    <xs:element name="P1V2" type="doubletype" maxOccurs="1"/>
+                                    <xs:element name="P1V3" type="doubletype" maxOccurs="1"/>
+                                    <xs:element name="P2P3" type="doubletype" maxOccurs="1"/>
+                                    <xs:element name="P2V1" type="doubletype" maxOccurs="1"/>
+                                    <xs:element name="P2V2" type="doubletype" maxOccurs="1"/>
+                                    <xs:element name="P2V3" type="doubletype" maxOccurs="1"/>
+                                    <xs:element name="P3V1" type="doubletype" maxOccurs="1"/>
+                                    <xs:element name="P3V2" type="doubletype" maxOccurs="1"/>
+                                    <xs:element name="P3V3" type="doubletype" maxOccurs="1"/>
+                                    <xs:element name="V1V2" type="doubletype" maxOccurs="1"/>
+                                    <xs:element name="V1V3" type="doubletype" maxOccurs="1"/>
+                                    <xs:element name="V2V3" type="doubletype" maxOccurs="1"/>
+                                 </xs:sequence>
+                              </xs:complexType>
+                           </xs:element>
+                           <xs:element name="PositionDecorr" minOccurs="0" maxOccurs="1">
+                              <xs:complexType>
+                                 <xs:sequence>
+                                    <xs:element name="CorrCoefZero" type="doubletype" maxOccurs="1"/>
+                                    <xs:element name="DecorrRate" type="doubletype" maxOccurs="1"/>
+                                 </xs:sequence>
+                              </xs:complexType>
+                           </xs:element>
+                        </xs:sequence>
+                     </xs:complexType>
+                  </xs:element>
+                  <xs:element name="RadarSensor" minOccurs="0" maxOccurs="1">
+                     <xs:complexType>
+                        <xs:sequence>
+                           <xs:element name="RangeBias" type="doubletype" maxOccurs="1"/>
+                           <xs:element name="ClockFreqSF" type="doubletype" minOccurs="0" maxOccurs="1"/>
+                           <xs:element name="TransmitFreqSF" type="doubletype" minOccurs="0" maxOccurs="1"/>
+                           <xs:element name="RangeBiasDecorr" minOccurs="0" maxOccurs="1">
+                              <xs:complexType>
+                                 <xs:sequence>
+                                    <xs:element name="CorrCoefZero" type="doubletype" maxOccurs="1"/>
+                                    <xs:element name="DecorrRate" type="doubletype" maxOccurs="1"/>
+                                 </xs:sequence>
+                              </xs:complexType>
+                           </xs:element>
+                        </xs:sequence>
+                     </xs:complexType>
+                  </xs:element>
+                  <xs:element name="TropoError" minOccurs="0" maxOccurs="1">
+                     <xs:complexType>
+                        <xs:sequence>
+                           <xs:element name="TropoRangeVertical" type="doubletype" minOccurs="0" maxOccurs="1"/>
+                           <xs:element name="TropoRangeSlant" type="doubletype" minOccurs="0" maxOccurs="1"/>
+                           <xs:element name="TropoRangeDecorr" minOccurs="0" maxOccurs="1">
+                              <xs:complexType>
+                                 <xs:sequence>
+                                    <xs:element name="CorrCoefZero" type="doubletype" maxOccurs="1"/>
+                                    <xs:element name="DecorrRate" type="doubletype" maxOccurs="1"/>
+                                 </xs:sequence>
+                              </xs:complexType>
+                           </xs:element>
+                        </xs:sequence>
+                     </xs:complexType>
+                  </xs:element>
+                  <xs:element name="IonoError" minOccurs="0" maxOccurs="1">
+                     <xs:complexType>
+                        <xs:sequence>
+                           <xs:element name="IonoRangeVertical" type="doubletype" minOccurs="0" maxOccurs="1"/>
+                           <xs:element name="IonoRangeRateVertical" type="doubletype" minOccurs="0" maxOccurs="1"/>
+                           <xs:element name="IonoRgRgRateCC" type="doubletype" maxOccurs="1"/>
+                           <xs:element name="IonoRangeVertDecorr" minOccurs="0" maxOccurs="1">
+                              <xs:complexType>
+                                 <xs:sequence>
+                                    <xs:element name="CorrCoefZero" type="doubletype" maxOccurs="1"/>
+                                    <xs:element name="DecorrRate" type="doubletype" maxOccurs="1"/>
+                                 </xs:sequence>
+                              </xs:complexType>
+                           </xs:element>
+                        </xs:sequence>
+                     </xs:complexType>
+                  </xs:element>
+               </xs:sequence>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="AdditionalParms" minOccurs="0" maxOccurs="1">
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:element name="Parameter" type="parametertype" minOccurs="1" maxOccurs="unbounded"/>
+               </xs:sequence>
+            </xs:complexType>
+         </xs:element>
+      </xs:sequence>
+   </xs:complexType>
+
+   <xs:complexType name="matchinfotype">
+      <xs:sequence>
+         <xs:element name="Collect" minOccurs="1" maxOccurs="unbounded">
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:element name="CollectorName" type="stringtype" maxOccurs="1"/>
+                  <xs:element name="IlluminatorName" type="stringtype" minOccurs="0" maxOccurs="1"/>
+                  <xs:element name="CoreName" type="stringtype" maxOccurs="1"/>
+                  <xs:element name="MatchType" type="stringtype" minOccurs="0" maxOccurs="unbounded"/>
+                  <xs:element name="Parameter" type="parametertype" minOccurs="0" maxOccurs="unbounded"/>
+               </xs:sequence>
+               <xs:attribute name="index" type="xs:int" use="required"/>
+            </xs:complexType>
+         </xs:element>
+      </xs:sequence>
+   </xs:complexType>
+
+   <xs:complexType name="pfatype">
+      <xs:sequence>
+         <xs:element name="FPN" type="xyztype" maxOccurs="1"/>
+         <xs:element name="IPN" type="xyztype" maxOccurs="1"/>
+         <xs:element name="PolarAngRefTime" type="doubletype" maxOccurs="1"/>
+         <xs:element name="PolarAngPoly" type="poly1dtype" maxOccurs="1"/>
+         <xs:element name="SpatialFreqSFPoly" type="poly1dtype" maxOccurs="1"/>
+         <xs:element name="Krg1" type="doubletype" maxOccurs="1"/>
+         <xs:element name="Krg2" type="doubletype" maxOccurs="1"/>
+         <xs:element name="Kaz1" type="doubletype" maxOccurs="1"/>
+         <xs:element name="Kaz2" type="doubletype" maxOccurs="1"/>
+         <xs:element name="STDeskew" minOccurs="0" maxOccurs="1">
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:element name="Applied" type="booleantype" maxOccurs="1"/>
+                  <xs:element name="STDSPhasePoly" type="poly2dtype" maxOccurs="1"/>
+               </xs:sequence>
+            </xs:complexType>
+         </xs:element>
+      </xs:sequence>
+   </xs:complexType>
+
+   <xs:complexType name="rmatype">
+      <xs:sequence>
+         <xs:element name="RMAlgoType" maxOccurs="1">
+            <xs:complexType>
+               <xs:simpleContent>
+                  <xs:restriction base="stringtype">
+                     <xs:enumeration value="OMEGA_K"/>
+                     <xs:enumeration value="CSA"/>
+                     <xs:enumeration value="RG_DOP"/>
+                  </xs:restriction>
+               </xs:simpleContent>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="ImageType" maxOccurs="1">
+            <xs:complexType>
+               <xs:simpleContent>
+                  <xs:restriction base="stringtype">
+                     <xs:enumeration value="RMAT"/>
+                     <xs:enumeration value="INCA"/>
+                  </xs:restriction>
+               </xs:simpleContent>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="RMAT" minOccurs="0" maxOccurs="1">
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:element name="RMRefTime" type="doubletype" maxOccurs="1"/>
+                  <xs:element name="RMPosRef" type="xyztype" maxOccurs="1"/>
+                  <xs:element name="RMVelRef" type="xyztype" maxOccurs="1"/>
+                  <xs:element name="CosDCACOAPoly" type="poly2dtype" maxOccurs="1"/>
+                  <xs:element name="Kx1" type="doubletype" maxOccurs="1"/>
+                  <xs:element name="Kx2" type="doubletype" maxOccurs="1"/>
+                  <xs:element name="Ky1" type="doubletype" maxOccurs="1"/>
+                  <xs:element name="Ky2" type="doubletype" maxOccurs="1"/>
+               </xs:sequence>
+            </xs:complexType>
+         </xs:element>
+         <xs:element name="INCA" minOccurs="0" maxOccurs="1">
+            <xs:complexType>
+               <xs:sequence>
+                  <xs:element name="TimeCAPoly" type="poly1dtype" maxOccurs="1"/>
+                  <xs:element name="R_CA_SCP" type="doubletype" maxOccurs="1"/>
+                  <xs:element name="FreqZero" type="doubletype" maxOccurs="1"/>
+                  <xs:element name="DRateSFPoly" type="poly1dtype" maxOccurs="1"/>
+                  <xs:element name="DopCentroidPoly" type="poly2dtype" minOccurs="0" maxOccurs="1"/>
+                  <xs:element name="DopCentroidCOA" type="booleantype" minOccurs="0" maxOccurs="1"/>
+               </xs:sequence>
+            </xs:complexType>
+         </xs:element>
+      </xs:sequence>
+   </xs:complexType>
+
+<!-- SICD MASTER -->
+   <xs:element name="SICD">
+      <xs:complexType>
+         <xs:sequence>
+            <xs:element name="CollectionInfo" type="collectioninfotype" maxOccurs="1"/>
+            <xs:element name="ImageCreation" type="imagecreationtype" minOccurs="0" maxOccurs="1"/>
+            <xs:element name="ImageData" type="imagedatatype" maxOccurs="1"/>
+            <xs:element name="GeoData" type="geodatatype" maxOccurs="1"/>
+            <xs:element name="Grid" type="gridtype" maxOccurs="1"/>
+            <xs:element name="Timeline" type="timelinetype" maxOccurs="1"/>
+            <xs:element name="Position" type="positiontype" maxOccurs="1"/>
+            <xs:element name="RadarCollection" type="radarcollectiontype" maxOccurs="1"/>
+            <xs:element name="ImageFormation" type="imageformationtype" maxOccurs="1"/>
+            <xs:element name="SCPCOA" type="scpcoatype" maxOccurs="1"/>
+            <xs:element name="Radiometric" type="radiometrictype" minOccurs="0" maxOccurs="1"/>
+            <xs:element name="Antenna" type="antennatype" minOccurs="0" maxOccurs="1"/>
+            <xs:element name="ErrorStatistics" type="errorstatisticstype" minOccurs="0" maxOccurs="1"/>
+            <xs:element name="MatchInfo" type="matchinfotype" minOccurs="0" maxOccurs="1"/>
+            <xs:choice>
+               <xs:element name="PFA" type="pfatype" maxOccurs="1"/>
+               <xs:element name="RMA" type="rmatype" maxOccurs="1"/>
+            </xs:choice>
+         </xs:sequence>
+      </xs:complexType>
+   </xs:element>
+</xs:schema>
+
+
+
+
+
+
+

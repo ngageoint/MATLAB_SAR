@@ -1,0 +1,12 @@
+function out = darkerremap(x)
+% DARKERREMAP Darker set of parameters for density remap
+%
+% //////////////////////////////////////////
+% /// CLASSIFICATION: UNCLASSIFIED       ///
+% //////////////////////////////////////////
+
+    out = uint8( amplitudetodensity(x,0,40) );
+end
+% //////////////////////////////////////////
+% /// CLASSIFICATION: UNCLASSIFIED       ///
+% //////////////////////////////////////////

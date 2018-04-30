@@ -1,0 +1,14 @@
+RedTxAngle = 0
+RedTxEllip = 0
+RedRxAngle = 0
+RedRxEllip = 0
+
+GreenTxAngle = 90
+GreenTxEllip = 0
+GreenRxAngle = 90
+GreenRxEllip = 0
+
+BlueTxAngle = 0
+BlueTxEllip = 0
+BlueRxAngle = 90
+BlueRxEllip = 0

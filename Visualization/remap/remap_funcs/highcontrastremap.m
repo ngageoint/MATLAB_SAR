@@ -1,0 +1,12 @@
+function out = highcontrastremap(x)
+% HIGHCONTRASTREMAP Increased constrast set of parameters for density remap
+%
+% //////////////////////////////////////////
+% /// CLASSIFICATION: UNCLASSIFIED       ///
+% //////////////////////////////////////////
+
+    out = uint8( amplitudetodensity(x,30,4) );
+end
+% //////////////////////////////////////////
+% /// CLASSIFICATION: UNCLASSIFIED       ///
+% //////////////////////////////////////////
