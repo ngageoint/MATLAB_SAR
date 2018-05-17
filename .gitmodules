@@ -1,0 +1,3 @@
+[submodule "IO/shapefile/kml/kmltoolbox"]
+	path = IO/shapefile/kml/kmltoolbox
+	url = https://github.com/rafael-aero/kml-toolbox.git
