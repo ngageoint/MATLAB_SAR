@@ -228,10 +228,13 @@ end
 % in SLC annotation file
 common_meta.CollectionInfo.Parameter{4}.name = 'ORBIT_SOURCE';
 if exist('eof_domnode','var')
-    % Use same time range as was used in SLC annotation file +/- 5 seconds,
-    % since samples are every 10 seconds.
-    timerange = [min(state_vector_T - (5/SECONDS_IN_A_DAY)) ...
-        max(state_vector_T + (5/SECONDS_IN_A_DAY))];
+    % Use same time range as was used in SLC annotation file plus some
+    % buffer to assure enough state vectors are selected, since we are
+    % fitting to 5th order polynomial.  EOF files have state vectors every
+    % 10 seconds.
+    buffer = max(5, (70-(max(state_vector_T)-min(state_vector_T))*SECONDS_IN_A_DAY)/2);
+    timerange = [min(state_vector_T - (buffer/SECONDS_IN_A_DAY)) ...
+        max(state_vector_T + (buffer/SECONDS_IN_A_DAY))];
     [state_vector_T, state_vector_T_frac, state_vector_pos, state_vector_vel] = ...
         get_osv_from_eof(eof_domnode, timerange);
     
@@ -492,32 +495,11 @@ for i = 1:max(num_bursts,1)
     % Polynomial is computed with respect to time from start of burst
     state_vector_T_burst = round((state_vector_T-start_s)*SECONDS_IN_A_DAY) + ... % Convert from days to secs
         (state_vector_T_frac-start_frac); % Handle fractional seconds
-    % Some datasets don't include enough state vectors for 5th order fit
+    % sv2poly.m shows ways to determine best polynomial order, but 5th is almost always best
     polyorder = min(5, numel(state_vector_T_burst) - 1);
     P_x = polyfit(state_vector_T_burst, state_vector_pos(:,1), polyorder);
     P_y = polyfit(state_vector_T_burst, state_vector_pos(:,2), polyorder);
     P_z = polyfit(state_vector_T_burst, state_vector_pos(:,3), polyorder);
-    
-    % One could find the order of polynomial that most accurately describes
-    % this position, but use velocity as cross-validation so that the data
-    % is not being overfit.  Orders over 5 often become badly conditioned
-    % and result in a MATLAB warning.
-    % polyorder = 2;
-    % [current_vel_error, last_vel_error] = deal(Inf);
-    % while (current_vel_error<=last_vel_error) && ...
-    %         (polyorder<numel(state_vector_T_burst)) % Generally this should stop at polyorder=6
-    %     last_vel_error = current_vel_error;
-    %     P_x = polyfit(state_vector_T_burst, state_vector_pos(:,1), polyorder);
-    %     P_y = polyfit(state_vector_T_burst, state_vector_pos(:,2), polyorder);
-    %     P_z = polyfit(state_vector_T_burst, state_vector_pos(:,3), polyorder);
-    %     V_x = polyval(polyder(P_x),state_vector_T_burst);
-    %     V_y = polyval(polyder(P_y),state_vector_T_burst);
-    %     V_z = polyval(polyder(P_z),state_vector_T_burst);
-    %     current_vel_error = norm([V_x; V_y; V_z] - [state_vector_vel(:,1); state_vector_vel(:,2); state_vector_vel(:,3)]);
-    %     polyorder = polyorder + 1;
-    % end
-    % disp(polyorder-1);
-    
     output_meta{i}.Position.ARPPoly.X = P_x(end:-1:1).';
     output_meta{i}.Position.ARPPoly.Y = P_y(end:-1:1).';
     output_meta{i}.Position.ARPPoly.Z = P_z(end:-1:1).';

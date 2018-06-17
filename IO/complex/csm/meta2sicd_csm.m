@@ -114,7 +114,8 @@ ref_time_offset = round((ref_time-collectStart)*SECONDS_IN_A_DAY) + ... % Conver
 state_vector_T  = get_hdf_attribute(HDF5_fid,'State Vectors Times').'; % In seconds
 state_vector_T = state_vector_T + ref_time_offset; % Make with respect to Timeline.CollectStart
 state_vector_pos  = get_hdf_attribute(HDF5_fid,'ECEF Satellite Position');
-polyorder=3;
+% sv2poly.m shows ways to determine best polynomial order, but 5th is almost always best
+polyorder=min(5, numel(state_vector_T) - 1);
 P_x  = polyfit(state_vector_T, state_vector_pos(1,:), polyorder);
 P_y  = polyfit(state_vector_T, state_vector_pos(2,:), polyorder);
 P_z  = polyfit(state_vector_T, state_vector_pos(3,:), polyorder);

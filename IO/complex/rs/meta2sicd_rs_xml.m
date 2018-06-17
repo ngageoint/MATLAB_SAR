@@ -230,28 +230,11 @@ for i=1:num_state_vectors
 end
 state_vector_T = round((state_vector_T-rawDataStartTime)*SECONDS_IN_A_DAY) + ... % Convert from days to secs
         (state_vector_T_frac-rawDataStartTimeFrac); % Handle fractional seconds
-polyorder = min(4, numel(state_vector_T) - 1);
+% sv2poly.m shows ways to determine best polynomial order, but 5th is almost always best
+polyorder = min(5, numel(state_vector_T) - 1);
 P_x = polyfit(state_vector_T, state_vector_X, polyorder);
 P_y = polyfit(state_vector_T, state_vector_Y, polyorder);
 P_z = polyfit(state_vector_T, state_vector_Z, polyorder);
-% One could also find the order of polynomial that most accurately describes
-% this position, but use velocity as cross-validation so that the data
-% is not being overfit.
-% polyorder = 2;
-% [current_vel_error, last_vel_error] = deal(Inf);
-% while (current_vel_error<=last_vel_error) && ...
-%         (polyorder<numel(state_vector_T)) % Generally this should stop at polyorder=6
-%     last_vel_error = current_vel_error;
-%     P_x = polyfit(state_vector_T, state_vector_X, polyorder);
-%     P_y = polyfit(state_vector_T, state_vector_Y, polyorder);
-%     P_z = polyfit(state_vector_T, state_vector_Z, polyorder);
-%     V_x = polyval(polyder(P_x),state_vector_T);
-%     V_y = polyval(polyder(P_y),state_vector_T);
-%     V_z = polyval(polyder(P_z),state_vector_T);
-%     current_vel_error = norm([V_x; V_y; V_z] - ...
-%         [state_vector_VX; state_vector_VY; state_vector_VZ]);
-%     polyorder = polyorder + 1;
-% end
 output_meta.Position.ARPPoly.X = P_x(end:-1:1).';
 output_meta.Position.ARPPoly.Y = P_y(end:-1:1).';
 output_meta.Position.ARPPoly.Z = P_z(end:-1:1).';

@@ -316,7 +316,8 @@ for pol_i=1:pol_bands
     % Polynomial is computed with respect to time from start of collect
     state_vector_T_band = round((state_vector_T-collectStart)*SECONDS_IN_A_DAY) + ... % Convert from days to secs
         (state_vector_T_frac-collectStartFrac); % Handle fractional seconds
-    polyorder=5;
+    % sv2poly.m shows ways to determine best polynomial order, but 5th is almost always best
+    polyorder=min(5, numel(state_vector_T_band) - 1);
     P_x  = polyfit(state_vector_T_band, state_vector_X, polyorder);
     P_y  = polyfit(state_vector_T_band, state_vector_Y, polyorder);
     P_z  = polyfit(state_vector_T_band, state_vector_Z, polyorder);

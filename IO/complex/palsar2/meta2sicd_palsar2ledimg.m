@@ -46,29 +46,11 @@ for i=1:led_meta.pos.num_pts
     state_vector_vel(i,3) = led_meta.pos.pts(i).vel_z;
 end
 old_state = warning('off','MATLAB:polyfit:RepeatedPointsOrRescale');
-% 5th order fit generally works well.
+% sv2poly.m shows ways to determine best polynomial order, but 5th is almost always best
 polyorder = min(5, numel(state_vector_T) - 1);
 P_x = polyfit(state_vector_T, state_vector_pos(:,1), polyorder);
 P_y = polyfit(state_vector_T, state_vector_pos(:,2), polyorder);
 P_z = polyfit(state_vector_T, state_vector_pos(:,3), polyorder);
-% One could also find the order of polynomial that most accurately describes
-% this position, but use velocity as cross-validation so that the data
-% is not being overfit.
-% polyorder = 2;
-% [current_vel_error, last_vel_error] = deal(Inf);
-% while (current_vel_error<=last_vel_error) && ...
-%         (polyorder<numel(state_vector_T)) % Generally this should stop at polyorder=6
-%     last_vel_error = current_vel_error;
-%     P_x = polyfit(state_vector_T, state_vector_pos(:,1), polyorder);
-%     P_y = polyfit(state_vector_T, state_vector_pos(:,2), polyorder);
-%     P_z = polyfit(state_vector_T, state_vector_pos(:,3), polyorder);
-%     V_x = polyval(polyder(P_x),state_vector_T);
-%     V_y = polyval(polyder(P_y),state_vector_T);
-%     V_z = polyval(polyder(P_z),state_vector_T);
-%     current_vel_error = norm([V_x; V_y; V_z] - ...
-%         [state_vector_vel(:,1); state_vector_vel(:,2); state_vector_vel(:,3)]);
-%     polyorder = polyorder + 1;
-% end
 warning(old_state);
 sicd_meta.Position.ARPPoly.X = P_x(end:-1:1).';
 sicd_meta.Position.ARPPoly.Y = P_y(end:-1:1).';
