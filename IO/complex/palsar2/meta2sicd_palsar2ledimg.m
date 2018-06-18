@@ -45,12 +45,26 @@ for i=1:led_meta.pos.num_pts
     state_vector_vel(i,2) = led_meta.pos.pts(i).vel_y;
     state_vector_vel(i,3) = led_meta.pos.pts(i).vel_z;
 end
+% Limit state vectors so polynomial fit is only performed for times
+% moderatley close to this collect.  PALSAR state vectors are typically
+% spaced fairly far apart (usually 60 seconds), so we don't get that many
+% actually inside the collect (often only 1).  We use +/- 4 minutes around
+% collect, so this should at least include 9 state vectors, which should
+% support fitting a 6th order polynomial and result in precisions of about
+% a mm.
+buffer = 60*4;
+duration = (img_meta.signal(end).usec - img_meta.signal(1).usec) * 1e-6;
+valid = (state_vector_T + buffer > 0) & ...
+    (state_vector_T - duration - buffer < 0);  % Within collect +/- buffer
+% sv2poly.m shows ways to determine best polynomial order.  Usually 5th
+% order is sufficient to accurately describe any typical spaceborne SAR
+% collect. However, in this case, since the polynomial fit is over such a
+% large period of time, we bump up the polynomial order to 6.
+polyorder = min(6, numel(state_vector_T) - 1);
 old_state = warning('off','MATLAB:polyfit:RepeatedPointsOrRescale');
-% sv2poly.m shows ways to determine best polynomial order, but 5th is almost always best
-polyorder = min(5, numel(state_vector_T) - 1);
-P_x = polyfit(state_vector_T, state_vector_pos(:,1), polyorder);
-P_y = polyfit(state_vector_T, state_vector_pos(:,2), polyorder);
-P_z = polyfit(state_vector_T, state_vector_pos(:,3), polyorder);
+P_x = polyfit(state_vector_T(valid), state_vector_pos(valid,1), polyorder);
+P_y = polyfit(state_vector_T(valid), state_vector_pos(valid,2), polyorder);
+P_z = polyfit(state_vector_T(valid), state_vector_pos(valid,3), polyorder);
 warning(old_state);
 sicd_meta.Position.ARPPoly.X = P_x(end:-1:1).';
 sicd_meta.Position.ARPPoly.Y = P_y(end:-1:1).';
