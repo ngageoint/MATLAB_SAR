@@ -459,6 +459,12 @@ for pol_i=1:pol_bands
     output_meta.RMA.INCA.DRateSFPoly = - conv(dop_rate_poly_rg_scaled,r_ca) * ... % Multiplication of two polynomials is just a convolution of their coefficients
         SPEED_OF_LIGHT / (2 * fc * vm_ca_sq(1)); % Assumes a SGN of -1
 
+    %% Radiometric
+    output_meta.Radiometric.BetaZeroSFPoly = str2double(xp.evaluate(...
+        ['level1Product/calibration/calibrationConstant[@layerIndex="' num2str(pol_i) '"]/calFactor'],...
+        xml_domnode));
+    % RCS, Sigma0, Gamma0 will be populated in derived_sicd_fields
+
     %% GeoData
     % Now that sensor model fields have been populated, we can populate
     % GeoData.SCP more precisely.
