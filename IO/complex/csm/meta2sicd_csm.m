@@ -398,6 +398,24 @@ for i=1:numbands
     x=A\b_coa; % MATLAB often flags this as badly scaled, but results still appear valid
     warning(old_warning_state);
     output_meta.Grid.TimeCOAPoly=reshape(x, POLY_ORDER+1, POLY_ORDER+1);
+
+    %% Radiometric
+    if ~strncmpi(get_hdf_attribute(HDF5_fid,'Range Spreading Loss Compensation Geometry')', 'NONE', 4)
+        fact = get_hdf_attribute(HDF5_fid,'Reference Slant Range') ^ ...
+            (2 * get_hdf_attribute(HDF5_fid,'Reference Slant Range Exponent'));
+        % This code commented out below converts from beta_0 to sigma_0,
+        % but we will just populate the more natural beta_0 directly, and
+        % let derived_sicd_fields compute the rest of the rcs, sigma_0,
+        % gamma_0 terms in a sensor independent way later.
+        % if ~strncmpi(get_hdf_attribute(HDF5_fid,'Incidence Angle Compensation Geometry')', 'NONE', 4)
+        %     fact = fact * sind(get_hdf_attribute(HDF5_fid,'Reference Incidence Angle'));
+        % end
+        if isequal(get_hdf_attribute(HDF5_fid,'Calibration Constant Compensation Flag'), 0)
+            fact = fact * (1 / (get_hdf_attribute(HDF5_fid,'Rescaling Factor')^2));
+            fact = fact / get_hdf_attribute(group_id(i),'Calibration Constant');
+            output_meta.Radiometric.BetaZeroSFPoly = fact;
+        end
+    end
     
     %% GeoData
     % Now that sensor model fields have been populated, we can populate
