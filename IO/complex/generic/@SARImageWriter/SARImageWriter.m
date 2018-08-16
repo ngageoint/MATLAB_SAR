@@ -19,7 +19,7 @@ classdef SARImageWriter < handle
     methods
         % Constructor.  Since this superclass constructor requires
         % arguments, constructors for derived classes will typically call
-        % this explicitly (MATLAB's default is to call the supercalss
+        % this explicitly (MATLAB's default is to call the superclass
         % constructor without argument.) to assure that the internal
         % metatdata is correctly set on creation.
         function obj = SARImageWriter(filename, sicdmeta)

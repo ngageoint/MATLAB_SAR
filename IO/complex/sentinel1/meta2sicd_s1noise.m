@@ -16,20 +16,26 @@ for i = 1:(numel(meta_product)-1)
     first_line(i+1) = first_line(i) + meta_product{i}.ImageData.NumCols;
 end
 % Read noise parameters from XML
+n_str = 'noise';
 num_noise_vecs=str2double(xp.evaluate(...
-    'count(noise/noiseVectorList/noiseVector)',domnode));
+    ['count(noise/' n_str 'VectorList/' n_str 'Vector)'],domnode));
+if num_noise_vecs == 0  % Data after March 2018 had different format
+    n_str = 'noiseRange';
+    num_noise_vecs=str2double(xp.evaluate(...
+        ['count(noise/' n_str 'VectorList/' n_str 'Vector)'],domnode));
+end
 noisevals = cell(num_noise_vecs,1);
 pixel = cell(num_noise_vecs,1);
 noise_line = zeros(num_noise_vecs,1);
 for i = 1:num_noise_vecs
     noise_line(i) = str2double(xp.evaluate(...
-        ['noise/noiseVectorList/noiseVector[' num2str(i) ']/line'],...
+        ['noise/' n_str 'VectorList/' n_str 'Vector[' num2str(i) ']/line'],...
         domnode));
     pixel{i} = str2num(xp.evaluate(...
-        ['noise/noiseVectorList/noiseVector[' num2str(i) ']/pixel'],...
+        ['noise/' n_str 'VectorList/' n_str 'Vector[' num2str(i) ']/pixel'],...
         domnode));
     noisevals{i} = str2num(xp.evaluate(...
-        ['noise/noiseVectorList/noiseVector[' num2str(i) ']/noiseLut'],...
+        ['noise/' n_str 'VectorList/' n_str 'Vector[' num2str(i) ']/' n_str 'Lut'],...
         domnode));
 end
 mode = char(xp.evaluate('noise/adsHeader/mode',domnode));
@@ -44,7 +50,7 @@ if upper(mode(1))=='S'
     noise_line = 0;
     % Allow for more slop for SM since we have 2D noise values, but aren't
     % doing a full 2D fit.  Because we average across all azimuth, there is
-    % not reason to attempt a tight fit, since it won't match across all
+    % no reason to attempt a tight fit, since it won't match across all
     % lines for any fit.
     fit_tolerance = 0.5;
     noisepoly_order = 3;
@@ -79,7 +85,7 @@ for i = 1:numel(meta_product) % First and last are usually outside bursts
 end
 % Throw warning for old, potentially inaccurate data
 last_az_time = xp.evaluate(...
-        ['noise/noiseVectorList/noiseVector[' num2str(num_noise_vecs) ']/azimuthTime'],...
+        ['noise/' n_str 'VectorList/' n_str 'Vector[' num2str(num_noise_vecs) ']/azimuthTime'],...
         domnode);
 if datenum(char(last_az_time),'yyyy-mm-ddTHH:MM:SS')<datenum(2015, 11, 25)
     warning('META2SICD_S1NOISE:EARLY_DATE','Sentinel-1 radiometric data prior to November 25, 2015 might not be accurate.');    
