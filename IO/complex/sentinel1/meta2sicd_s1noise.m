@@ -65,7 +65,9 @@ output_meta = cell(numel(meta_product),1);
 for i = 1:numel(meta_product) % First and last are usually outside bursts
     % Which noise values should we use for this burst?  We use the ones
     % that correspond to the first column of the burst.
-    line_ind = find(noise_line==first_line(i),1);
+    line_ind = find(noise_line>=first_line(i) & ...
+        noise_line<(first_line(i)+meta_product{i}.ImageData.NumCols),1);
+    if isempty(line_ind), continue, end
     coords_rg_m = (double(0:(meta_product{i}.ImageData.NumRows-1)) - ...
         double(meta_product{i}.ImageData.SCPPixel.Row)) * ...
         meta_product{i}.Grid.Row.SS;
