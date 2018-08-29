@@ -132,11 +132,9 @@ function [elevations, lats, lons, meta] = read_DTED( filename, LL, UR )
     meta.mult_acc_out_flg = fread(fid, 2, 'uint8=>char')';
 
     % Build the reference latitude and longitude values
-    r = meta.num_lat_lines;
-    c = meta.num_lon_lines;
     %PJC 2014-05-21 fixed bug for negative lats or lons
-    lats = (0:(c-1))*meta.lat_spacing_dd + meta.lat_orig_dd*sign(LL(1));
-    lons = (0:(r-1))*meta.lon_spacing_dd + meta.lon_orig_dd*sign(LL(2));
+    lats = (0:(meta.num_lat_lines-1))*meta.lat_spacing_dd + meta.lat_orig_dd*sign(LL(1));
+    lons = (0:(meta.num_lon_lines-1))*meta.lon_spacing_dd + meta.lon_orig_dd*sign(LL(2));
 
 
     % If range of lat/lons is given, constrain window to read

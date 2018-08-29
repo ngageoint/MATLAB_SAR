@@ -23,19 +23,15 @@ function [lats,lons,elevations,meta] = get_DEM_heights_region(LL, UR, varargin)
 % Allowed properties:
 %       Property name         Description
 %       -----------------------------------------------------------------
-%        defaultDEMDirectory  The directory root in which DEM (DTED) files
+%        DEMBaseDir           The directory root in which DEM (DTED) files
 %                             reside.
 %        correctUndulation    A boolean indicating if the DEM data should
-%                             have the geoid unduilation correction
-%                             applied.
-%        useHiRes             If a file name is not provided via the
-%                             undulationFilename parameter a default will be
-%                             used.  The default is the "low resolution"
-%                             2.5x2.5 minute grid.  If the useHiRes parameter
-%                             is set to true, however, the higher-resolution
-%                             1x1 minute grid will be used.
+%                             have the geoid undulation correction
+%                             applied, or a string with the undulation
+%                             filename to be used for correction.
 %
 % Written by: Tom Krauss, NGA/IDT
+%             Wade Schwartzkopf, NGA/R
 %
 % //////////////////////////////////////////
 % /// CLASSIFICATION: UNCLASSIFIED       ///
@@ -43,19 +39,16 @@ function [lats,lons,elevations,meta] = get_DEM_heights_region(LL, UR, varargin)
 
 %% Set up a few default values and/or use the values passed in by the caller.
 if exist('defaultDEMDirectory', 'file')
-  DEMBaseDir = defaultDEMDirectory;
+    DEMBaseDir = defaultDEMDirectory;
+elseif ispref('matlab_sar_toolbox','DEM_Location')
+    DEMBaseDir = getpref('matlab_sar_toolbox','DEM_Location');
 else
-  DEMBaseDir = '';
+    DEMBaseDir = '';
 end
 p = inputParser;
-p.KeepUnmatched = true;
-p.addParamValue('defaultDEMDirectory', DEMBaseDir);
-p.addParamValue('correctUndulation', false);
-p.addParamValue('useHiRes', false);
+p.addParamValue('DEMBaseDir', DEMBaseDir);
+p.addParamValue('correctUndulation', true);
 p.parse(varargin{:});
-
-%PJC 2014-05-21 fixed input bug
-DEMBaseDir = p.Results.defaultDEMDirectory;
 
 %% If area spans multiple DEM files, setup array to describe each file
 lat_steps=floor(LL(1)):floor(UR(1));
@@ -75,9 +68,9 @@ for lat_index=1:length(lat_steps)
         else                         lon_dir = 'e';
         end
         DEMfilename{lon_index,lat_index} = ...
-            sprintf('%s/dted/%c%03d/%c%02d.dt2', DEMBaseDir, ...
-                    lon_dir, abs(floor(lon_steps(lon_index))), ...
-                    lat_dir, abs(floor(lat_steps(lat_index))) );
+            sprintf('%s/dted/%c%03d/%c%02d.dt2', p.Results.DEMBaseDir, ...
+            lon_dir, abs(floor(lon_steps(lon_index))), ...
+            lat_dir, abs(floor(lat_steps(lat_index))) );
         if ~exist(DEMfilename{lon_index,lat_index},'file')
             % The DTED file doesn't exist.
             error('GET_DEM_HEIGHT:DEM_FILE_NOT_FOUND',...
@@ -93,18 +86,17 @@ end
 elevations=cell2mat(elevations);
 lats=[lats{1,:}];
 lons=[lons{:,1}];
-if length(meta)==1, meta=meta{1}; end; % Remove cell array wrapper for single file
+if length(meta)==1, meta=meta{1}; end % Remove cell array wrapper for single file
 
 %% Compensate for geoid undulation
-if (p.Results.correctUndulation)
-    for iii=1:length(lons)
-        for jjj=1:length(lats)
-            undulation = geoid_undulation(lats(jjj), ...
-                                          lons(iii), ...
-                                          'useHiRes', p.Results.useHiRes);
-            elevations(iii,jjj) = elevations(iii,jjj) + undulation;
-        end
+if isscalar(p.Results.correctUndulation) && p.Results.correctUndulation
+    if ischar(p.Results.correctUndulation)  % Was undulation filename passed?
+        args={p.Results.correctUndulation};
+    else
+        args={};
     end
+    [lats_mg, lons_mg] = meshgrid(lats, lons);
+    elevations = elevations + geoid_undulation(lats_mg,lons_mg,args);
 end
 
 end

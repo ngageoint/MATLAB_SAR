@@ -14,8 +14,6 @@ function geoid_undulation_test_driver
 % /// CLASSIFICATION: UNCLASSIFIED       ///
 % //////////////////////////////////////////
 
-    filename = 'Und_min2.5x2.5_egm2008_isw=82_WGS84_TideFree_SE';
-
     % These values are the expected results.  The first 6 are from the
     % documentation "output.dat" file while the last 2 are "interesting
     % points" whose results have been computed via the NGA web site.  Note,
@@ -38,7 +36,7 @@ function geoid_undulation_test_driver
     for i=1:length(correct)
         lat = correct(i,1);
         lon = correct(i,2);
-        H   = geoid_undulation(lat, lon, 'useHiRes', true);
+        H   = geoid_undulation(lat, lon, which(['Und_min1x1_egm2008_isw=82_WGS84_TideFree_SE' '.']));
         
         % special handling...
         if (i==3)

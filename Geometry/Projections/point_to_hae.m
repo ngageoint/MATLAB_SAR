@@ -13,8 +13,9 @@ function [SPP] = point_to_hae(R_TGT_COA, Rdot_TGT_COA, ARP_COA, VARP_COA, SCP, H
 %    HAE0         - Surface height (m) above the WGS-84 reference ellipsoid
 %                   for projection point SPP
 %    delta_HAE_MAX- Height threshold for convergence of iterative
-%                   projection sequence.
+%                   projection sequence.  Recommended value: 1.0 m.
 %    NLIM         - Maximum number of iterations allowed.
+%                   Recommended value: 3.
 %
 % Outputs:
 %    SPP          - [3xN] Surface Projection Point position on the HAE0
@@ -28,9 +29,6 @@ function [SPP] = point_to_hae(R_TGT_COA, Rdot_TGT_COA, ARP_COA, VARP_COA, SCP, H
 % //////////////////////////////////////////
 
 %% 9. Precise R/Rdot To Constant HAE Surface Projection
-
-numpts = numel(R_TGT_COA);
-
 iters = 0;
 delta_HAE = Inf;
 

@@ -32,6 +32,18 @@ function [ gpos ] = point_image_to_ground( im_points, sicd_meta, varargin )
 %       hae_nlim          Maximum number of iterations allowed for constant
 %                         hae computation.  Default 3.  Only valid if
 %                         projection_type is 'hae'.
+%       dem               SRTM pathname or structure with
+%                         lats/lons/elevations fields where are all are
+%                         arrays of same size and elevation is height above
+%                         WGS-84 ellipsoid.
+%                         Only valid if projection_type is 'dem'.
+%       del_DISTrrc       Maximum distance between adjacent points along
+%                         the R/Rdot contour. Recommended value: 10.0 m.
+%                         Only valid if projection_type is 'dem'.
+%       del_HDlim         Height difference threshold for determining if a
+%                         point on the R/Rdot contour is on the DEM
+%                         surface (m).  Recommended value: 0.001 m.  Only
+%                         valid if projection_type is 'dem'.
 %       delta_arp         ARP position adjustable parameter (ECF, m).  Default 0.
 %       delta_varp        VARP position adjustable parameter (ECF, m/s).  Default 0.
 %       range_bias        Range bias adjustable parameter (m).  Default 0.
@@ -52,12 +64,11 @@ function [ gpos ] = point_image_to_ground( im_points, sicd_meta, varargin )
 % //////////////////////////////////////////
 
 %% Parse input parameters
-if isvector(im_points), im_points = im_points(:); end; % Assure orientation
+if isvector(im_points), im_points = im_points(:); end % Assure orientation
 scp = [sicd_meta.GeoData.SCP.ECF.X; ...
     sicd_meta.GeoData.SCP.ECF.Y; ...
     sicd_meta.GeoData.SCP.ECF.Z]; % Default values for some input arguments require this
-scp_llh = ecf_to_geodetic(scp);
-% scp_llh = sicd_meta.GeoData.SCP.LLH; % Doesn't seem to be exactly the same
+scp_llh = ecf_to_geodetic(scp);  % Also should be available in sicd_meta.GeoData.SCP.LLH
 scp_hae = scp_llh(3);
 p = inputParser;
 p.addParamValue('projection_type','plane', @(x) any(strcmp(x,{'plane','hae','hae_newton','dem'})));
@@ -71,7 +82,9 @@ p.addParamValue('ugpn',default_ugpn, @(x) (size(x,1)==3)||(numel(x)==3)); % ECF
 p.addParamValue('hae0',scp_hae, @isscalar); % meters
 p.addParamValue('delta_hae_max', 1, @(x) isscalar(x) && (x>0)); % meters
 p.addParamValue('hae_nlim', 3, @isscalar);
-% p.addParamValue('dem',[]); % Not sure how this would work yet, DEM filename?
+p.addParamValue('dem',[]);
+p.addParamValue('del_DISTrrc', 10, @isscalar);
+p.addParamValue('del_HDlim', 0.001, @isscalar);
 % Adjustable parameters
 p.addParamValue('delta_arp',[0 0 0], @(x) numel(x)==3); % ECF? (meters)
 p.addParamValue('delta_varp',[0 0 0], @(x) numel(x)==3); % ECF? (meters/s)
@@ -135,7 +148,9 @@ switch p.Results.projection_type
         gpos = point_to_hae_newton(r, rdot, arp_coa, varp_coa, scp, ...
             p.Results.hae0);
     case 'dem' % Chapter 10 of SICD document (draft)
-        gpos = point_to_DEM(r, rdot, arp_coa, varp_coa, p.Results.dem); % TODO
+        gpos = point_to_DEM(r, rdot, arp_coa, varp_coa, scp, ...
+            p.Results.delta_hae_max, p.Results.hae_nlim, p.Results.dem, ...
+            p.Results.del_DISTrrc, p.Results.del_HDlim);
     otherwise
         % Unrecognized projection type
 end

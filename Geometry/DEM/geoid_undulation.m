@@ -1,4 +1,4 @@
-function undulation = geoid_undulation(lat, lon, varargin)
+function undulation = geoid_undulation(lat, lon, undulationFilename)
 % GEOID_UNDULATION Computes the difference between the WGS84
 % ellipsoid and the EGM2008 Global Gravitational geoid.  This
 % "undulation" is computed by interpolating between point values
@@ -19,58 +19,45 @@ function undulation = geoid_undulation(lat, lon, varargin)
 %       lon:            A floating point decimal degree value for the
 %                       longitude of the point whos undulation is to be
 %                       determined.
-%       PropertyName:   The PropertyName and PropertyValue are key-value
-%       PropertyValue:  pairs used throughout the tool kit...
 %
 % Allowed properties:
 %       Property name         Description
 %       -----------------------------------------------------------------
 %       undulationFilename The name of the geoid undulation file that
 %                          contains elevation offsets.  If a file name is
-%                          provided it will be used otherwise a default
-%                          file will be used.
-%       useHiRes           If a file name is not provided via the
-%                          undulationFilename parameter a default will be
-%                          used.  The default is the "low resolution"
-%                          2.5x2.5 minute grid.  If the useHiRes parameter
-%                          is set to true, however, the higher-resolution
-%                          1x1 minute grid will be used.
+%                          provided it will be used; otherwise a default
+%                          file name will be searched for on MATLAB path.
 %
 % Written by: Tom Krauss, NGA/IDT
+%             Wade Schwartzkopf, NGA/R
 %
 % //////////////////////////////////////////
 % /// CLASSIFICATION: UNCLASSIFIED       ///
 % //////////////////////////////////////////
 
-defaultLowResUundulationFilename = 'Und_min2.5x2.5_egm2008_isw=82_WGS84_TideFree_SE';
-defaultHiResUundulationFilename  = 'Und_min1x1_egm2008_isw=82_WGS84_TideFree_SE';
+defaultFilenames = {...
+    'Und_min1x1_egm2008_isw=82_WGS84_TideFree_SE', ...
+    'Und_min1x1_egm2008_isw=82_WGS84_TideFree', ...
+    'Und_min2.5x2.5_egm2008_isw=82_WGS84_TideFree_SE', ...
+    'Und_min2.5x2.5_egm2008_isw=82_WGS84_TideFree'};
 
-
-p = inputParser;
-p.addParamValue('undulationFilename', defaultLowResUundulationFilename);
-p.addParamValue('useHiRes', false);
-p.parse(varargin{:});
-
-filename = p.Results.undulationFilename;
-
-% Requested to use "high resolution", use hi-res geoid file regardless of
-% the passed-in filename parameter.
-if p.Results.useHiRes
-    filename = defaultHiResUundulationFilename;
+if ~exist('undulationFilename', 'var') || isempty(undulationFilename)
+    % Look to see if one of the default filenames is on the MATLAB path
+    for i = 1:numel(defaultFilenames)
+        % Note: we need to append the '.' to the file name because "which" uses
+        % that to identify the string as a file (rather than a function).  If
+        % the file name already has a '.' it still works, but if it's missing
+        % one "which" will fail.
+        undulationFilename = which([defaultFilenames{i} '.']);
+        if ~isempty(undulationFilename), break, end
+    end
+    if isempty(undulationFilename)
+        error('GEOID_UNDULATION:UNDULATION_FILE_NOT_FOUND',...
+            'Undulation file not found.  Pass filename explicitly or place a file with the default filename on the MATLAB path.');
+    end
 end
 
-
-% Note: we need to append the '.' to the file name because "which" uses
-% that to identify the string as a file (rather than a function).  If
-% the file name already has a '.' it still works, but if it's missing
-% one "which" will fail.
-fullPath = which([filename '.']);
-
-fileStats = dir(fullPath);
-if isempty(fileStats),
-    error('GEOID_UNDULATION:UNDULATION_FILE_NOT_FOUND',...
-        'Undulation file not found.  Pass filename explicitly with the ''undulationFilename'' input parameter, or place a file with the default filename on the MATLAB path.');
-end;
+fileStats = dir(undulationFilename);
 b = fileStats.bytes;
 % Please excuse the hard-coded numbers here.  This is solving the
 % inverse function mapping grid size to number of bytes.  That is,
@@ -92,47 +79,54 @@ record_length      = 4*(num_record_entries); % 4-byte float values
 % values.
 lon = mod(lon,360);
 
+% Read range of values that span requested points
+% This functions grabs undulations values as a single read from a
+% rectangular subarray. If requested points are widely dispersed, it may be
+% more efficient to do multiple smaller reads from across the file.
+% All the min/max's in the index computations below come from the fact that
+% you must grab at least 2 lat/lons for interp2 to work, even if the point
+% for evaluation falls exactly on a sample.
+lat_min_ind = min(floor(1+(90-max(lat(:)))/delta_lat),num_records-1);
+lat_max_ind = max(ceil(1+(90-min(lat(:)))/delta_lat),lat_min_ind+1);
+lon_min_ind = floor(1+min(lon(:))/delta_lon);
+lon_max_ind = min(max(ceil(1+max(lon(:))/delta_lon),lon_min_ind+1),num_lon_values);
+latsize=lat_max_ind-lat_min_ind+1;
+lonsize=lon_max_ind-lon_min_ind+1;
 
-fid = fopen(filename, 'r');
-
-% Seek to the correct location in the file.  Each record is a set
-% of longitudes at a constant latitude.  Seek to the record which is
-% just "above" the desired latitude.  If -90 degrees is being requested
-% grab the last two records.  We'll do that by "cheating" and forcing
-% the largest offset value to be one less than the number of records.  
-% later we'll grab two records so we'll get the last one.
-off = min( floor((90-lat)/delta_lat), num_records-1 );
-fseek(fid, off*record_length, 'bof');
-
-% Read in two records.  This gives us the latitude "cuts" above and
-% below the desired latitude value.  We'll also strip out the leading
-% and trailing record markers and extend the values to "wrap".  The
-% file doesn't duplicate the value at 360 degrees (which should equal
-% the value at 0 degreees) so we'll add it in - that is, copy the value
-% from 0 degrees to the end of the lon_vals array (360 degrees).
-lon_vals = fread(fid, [num_record_entries 2], 'float32')';
+% Read relevant values from file
+fid = fopen(undulationFilename, 'r', 'l');
+% Detect endianness
+if fread(fid,1,'*uint32') ~= num_lon_values*4
+    fclose(fid);
+    fid = fopen(undulationFilename, 'r', 'b');
+    if fread(fid,1,'*uint32') ~= num_lon_values*4
+        error('GEOID_UNDULATION:INVALID_FILE',...
+            'Undulation file not in expected format.');
+    end
+end
+fseek(fid,4+... % Beginning of data
+    ((lat_min_ind-1)*record_length)+... % Skip to first row of interest
+    ((lon_min_ind-1)*4),'bof'); % Skip to first column of interest
+vals=fread(fid,[lonsize,latsize],[num2str(lonsize) '*float32'],...
+    8+(num_lon_values-lonsize)*4)';
+if max(lon(:)) > (360-delta_lon) % Replicate 0 for 360
+    fseek(fid,4+((lat_min_ind-1)*record_length),'bof'); % First longitude
+    vals=[vals, fread(fid,[1 latsize],'1*float32',...
+        8+(num_lon_values-lonsize)*4)'];
+    lon_max_ind = lon_max_ind + 1;  % For later interpolation
+end
 fclose(fid);
-lon_vals = lon_vals(:,2:end-1);
-lon_vals(:,num_lon_values+1) = lon_vals(:,1);
 
-% Now pull out the point values surrounding the requested longitude.
-% Here "index" is the index of the point nearest west so the
-% requested longitude must lie between index and index+1.
-index = floor(1 + lon/delta_lon);
-vals = lon_vals(:,index:index+1);
-
-% We'll use Matlab's built-in interpolator so we'll need to build
-% arrays to represet the latitude and longitude "grid" of the four
-% points.  The "Xs" and "Ys" arrays give the latitudes and longitudes 
-% of the four corners while "vals" gives the undulation at those
-% points.
-Xs = delta_lon*[index-1 index;index-1 index];
-Ys = 90 - delta_lat*[off off;off+1 off+1];    
+% We'll use Matlab's built-in interpolator so we'll need to build arrays to
+% represent the latitude and longitude "grid" of the points.  The "Xs" and
+% "Ys" arrays give the latitudes and longitudes of the requested points
+% while "vals" gives the undulation at those points.
+[Xs,Ys] = meshgrid(delta_lon*((lon_min_ind:lon_max_ind)-1),...
+    90 - delta_lat*((lat_min_ind:lat_max_ind)-1));
 undulation = interp2(Xs, Ys, vals, lon, lat, 'linear');
     
 end
-%
+
 % //////////////////////////////////////////
 % /// CLASSIFICATION: UNCLASSIFIED       ///
 % //////////////////////////////////////////
-
