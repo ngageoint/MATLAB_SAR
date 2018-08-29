@@ -136,17 +136,5 @@ for i=1:NumPoints
             GPP(:,i) = CTR + Rrrc*(cos_CA_S*uRRX+sin_CA_S*uRRY);
         end
     end
-    % % This version diverges from the method described in the SICD
-    % % document and just fits a polynomial to the delta heights and find
-    % % the zero(s).  OK for smooth surface, but won't work for sufficiently
-    % % complicated surfaces.
-    % p = polyfit(1:NPTS,del_h,3);    
-    % temp = abs(roots(p));     
-    % % Get the root that is in the proper range (1-NPTS)
-    % temp(temp<1|temp>NPTS) = NaN;
-    % val = abs(min(temp));  % If there is no solution, val-- and thus GPP(:,i)-- will be NaN
-    % cos_CA_S = cos_CAb+(val-1)*del_cos_CA;    
-    % sin_CA_S = LOOK*sqrt(1-cos_CA_S*cos_CA_S);
-    % GPP(:,i) = CTR + Rrrc*(cos_CA_S*uRRX+sin_CA_S*uRRY);
 end
 end
