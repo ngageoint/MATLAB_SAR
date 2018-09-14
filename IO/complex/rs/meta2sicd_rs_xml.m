@@ -45,12 +45,18 @@ end
 output_meta.CollectionInfo.CollectType='MONOSTATIC';
 output_meta.CollectionInfo.RadarMode.ModeID=char(xp.evaluate(...
     xpath_str({'product','sourceAttributes','beamModeMnemonic'}),xml_domnode));
-if strncmpi('SC',output_meta.CollectionInfo.RadarMode.ModeID,2)
+beamMode = char(xp.evaluate(xpath_str({...
+    'product','sourceAttributes','beamMode'}),xml_domnode));
+acqType = char(xp.evaluate(xpath_str({...
+    'product','sourceAttributes','radarParameters','acquisitionType'}),xml_domnode));
+if ((~isempty(beamMode) && strncmpi(beamMode, 'SPOTLIGHT', 9)) || ...
+   (~isempty(acqType) && strncmpi(acqType, 'SPOTLIGHT', 9)) || ...
+   ~isempty(strfind(output_meta.CollectionInfo.RadarMode.ModeID,'SL')))
+    output_meta.CollectionInfo.RadarMode.ModeType = 'SPOTLIGHT';
+elseif strcmpi(output_meta.CollectionInfo.RadarMode.ModeID(1:2), 'SC')
     error('META2SICD_RS_XML:RS_SCANSAR', 'ScanSAR mode data is not currently handled.');
-elseif strncmpi('SL',output_meta.CollectionInfo.RadarMode.ModeID,2)
-    output_meta.CollectionInfo.RadarMode.ModeType='SPOTLIGHT';
-else
-    output_meta.CollectionInfo.RadarMode.ModeType='STRIPMAP';
+else % Finally assume it's stripmap
+    output_meta.CollectionInfo.RadarMode.ModeType = 'STRIPMAP';
 end
 if strcmp(gen, 'RS2') % All RS2 data is unclassified
     output_meta.CollectionInfo.Classification='UNCLASSIFIED';

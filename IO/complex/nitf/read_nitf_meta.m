@@ -70,10 +70,13 @@ if isfield(meta.filehdr,'NUMT') && meta.filehdr.NUMT > 0
 end
 
 %% READ DATA EXTENSION SEGMENT SUBHEADERS
+curr_pos = ftell(fid);
 if isfield(meta.filehdr,'NUMDES') && meta.filehdr.NUMDES > 0
     for seg = 1:meta.filehdr.NUMDES
+        fseek(fid, curr_pos, 'bof');
         fld = strcat('DESSubhdr',num2str(seg));
         meta = readDESegSubhdr(meta,fid,fld);
+        curr_pos = curr_pos + meta.filehdr.LDSH(seg) + meta.filehdr.LD(seg);
     end
 end
 

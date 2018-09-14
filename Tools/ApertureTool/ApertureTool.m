@@ -74,7 +74,7 @@ remap_list = getremaplist();
 default_remap = find(strcmpi(remap_list,'densityremap'),1,'first');
 set(handles.remap_combo,'String',remap_list);
 set(handles.remap_combo,'Value',default_remap);
-image_rep_list = {'amplitude' 'Pauli' 'AlphaEntropy'};
+image_rep_list = {'amplitude' 'Pauli' 'AlphaEntropy' 'Stokes'};
 set(handles.image_rep_combo,'String',image_rep_list);
 set(handles.image_rep_combo,'Value',1);
 old_img_position = getpixelposition(handles.image);
@@ -702,7 +702,7 @@ set(handles.ImageName,'String',fullfilename{1});
 
 %get metadata
 if (iscell(reader_obj))
-    meta=reader_obj{1}.get_meta(); % Assume first frame for getting default frame/aoi size
+    meta=reader_obj{1}.get_meta(); % Assume first frame for getting datasize
     % Adjust later if frame changes
 else
     meta=reader_obj.get_meta();
@@ -1089,6 +1089,17 @@ for ii = 1:size(handles.complex_data,3) %treat PHD for each polarization separat
     end
     
     phd(:,:,ii) = fftshift(handles.fft_sp(cdata.'));
+    try
+        [temp,k_a,k_r] = pfa2inv(phd(:,:,ii),meta);
+        phd_inv(:,:,ii) = double(temp);
+        handles.k_a = k_a;
+        handles.k_r = k_r;
+        handles.phasehistory_inv = phd_inv;
+        set(handles.InversePolar,'Enable','on');
+    catch
+        set(handles.InversePolar,'Enable','off');
+        set(handles.InversePolar,'Value',0);
+    end
 end
 % Uniform weighting
 if get(handles.UniformWeightingCheck,'Value') && ...
@@ -1123,10 +1134,19 @@ end
 
 %Draw PHD
 if isfield(handles,'polar_PHD_idx')
-    phdmag = abs(phd(:,:,handles.polar_PHD_idx));
+    if get(handles.InversePolar,'Value')
+        phdmag = abs(phd_inv(:,:,handles.polar_PHD_idx));
+    else
+        phdmag = abs(phd(:,:,handles.polar_PHD_idx));
+    end
 else
-    phdmag = abs(phd);
+    if get(handles.InversePolar,'Value')
+        phdmag = abs(phd_inv);
+    else
+        phdmag = abs(phd);
+    end
 end
+phdmag(isnan(phdmag)) = 0;
 phdmean = mean(phdmag(:));
 phdmag = 10.*phdmag./phdmean;
 phdmean = 10;
@@ -1239,8 +1259,8 @@ end
 reps = get(handles.image_rep_combo,'String');
 rep = reps{get(handles.image_rep_combo,'Value')};
 
-if ~any(strcmpi(rep,{'amplitude' 'Pauli' 'AlphaEntropy'}))
-    error('ApertureTool:ImageRep','ApertureTool: amplitude, Pauli, and AlphaEntropy are the only supported image representations');
+if ~any(strcmpi(rep,{'amplitude' 'Pauli' 'AlphaEntropy' 'Stokes'}))
+    error('ApertureTool:ImageRep','ApertureTool: amplitude, Pauli, AlphaEntropy, and Stokes are the only supported image representations');
 end
 if size(out,3) > 1
     if strcmpi(rep,'amplitude')
@@ -1262,11 +1282,28 @@ if size(out,3) > 1
                 if strcmpi(rep,'AlphaEntropy')
                     [out(:,:,1),out(:,:,2),out(:,:,3)] =ComputeAlphaEntropy(out(:,:,co_index),...
                         out(:,:,cross_index),[],[]);
-                else if strcmpi(rep,'Pauli')
-                        out=cat(3,abs(out(:,:,co_index)),...
-                            abs(out(:,:,cross_index)),...
-                            abs(out(:,:,co_index)));
-                    end
+                elseif strcmpi(rep,'Pauli')
+                    out=cat(3,abs(out(:,:,co_index)),...
+                        abs(out(:,:,cross_index)),...
+                        abs(out(:,:,co_index)));
+                elseif strcmpi(rep,'Stokes')
+                    [S,m,psi,chi,del] = ComputeStokesDual(out(:,:,co_index),out(:,:,cross_index),5);
+                    Cutoff = 2.5*std(psi(:));
+                    psi(psi>Cutoff) = Cutoff;
+                    psi(psi<-Cutoff) = -Cutoff;
+                    psi = abs(psi);
+                    psi = psi./Cutoff;
+                    %cut off HSV at 175/255 (Red to Blue)
+                    psi = psi.*(175/255);
+                    MinM = min(m(:));
+                    m = m - MinM;
+                    m = m.^7;
+                    m = m./max(m(:));
+                    val = double(amplitudetodensity(sqrt(S(:,:,1))/2,60,40))/255;
+                    HSV(:,:,1) = psi;
+                    HSV(:,:,2) = m;
+                    HSV(:,:,3) = val;
+                    out = hsv2rgb(HSV);
                 end
             case 3 % RGB image; nothing to do
             case 4 % Quad-pol
@@ -1391,33 +1428,43 @@ if isfield(handles.meta,'SCPCOA') && isfield(handles.meta.SCPCOA,'SideOfTrack') 
 end
 
 %now reform image with selected aperture
-if get(handles.InverseSelection,'Value')        
-    Ap = handles.phasehistory;
-    Ap(ymin:ymax,xmin:xmax,:) = 0;
-else       
-    Ap = zeros(ny,nx,nz);
-    phdchip = handles.phasehistory(ymin:ymax,xmin:xmax,:);
-    
-    if (ymax-ymin) < handles.ZpWidthRn - 2
-        FilterRange = 1;
+if get(handles.InverseSelection,'Value')
+    if get(handles.InversePolar,'Value')
+        %set inverse AOI base on k_a/k_r mapping to k_u/k_v space
+        Ap = ComputeInvPolarApData([xmin xmax],[ymin ymax],handles);
     else
-        FilterRange = 0;
+        Ap = handles.phasehistory;
+        Ap(ymin:ymax,xmin:xmax,:) = 0;
     end
-    if (xmax-xmin) < handles.ZpWidthAz - 2
-        FilterAz = 1;
+else
+    if get(handles.InversePolar,'Value')
+        %set inverse AOI base on k_a/k_r mapping to k_u/k_v space
+        Ap = ComputeInvPolarApData([xmin xmax],[ymin ymax],handles);
     else
-        FilterAz = 0;
+        Ap = zeros(ny,nx,nz);
+        phdchip = handles.phasehistory(ymin:ymax,xmin:xmax,:);
+    
+        if (ymax-ymin) < handles.ZpWidthRn - 2
+            FilterRange = 1;
+        else
+            FilterRange = 0;
+        end
+        if (xmax-xmin) < handles.ZpWidthAz - 2
+            FilterAz = 1;
+        else
+            FilterAz = 0;
+        end
+
+        if AlwaysApply
+            %apply filtering on both dimensions
+            FilterRange = 1;
+            FilterAz = 1;
+        end
+
+        phdchip = FilterPHDChip(phdchip,WindowFilter,FilterRange,FilterAz);         
+
+        Ap(ymin:ymax,xmin:xmax,:) = phdchip;    
     end
-    
-    if AlwaysApply
-        %apply filtering on both dimensions
-        FilterRange = 1;
-        FilterAz = 1;
-    end
-    
-    phdchip = FilterPHDChip(phdchip,WindowFilter,FilterRange,FilterAz);         
-    
-    Ap(ymin:ymax,xmin:xmax,:) = phdchip;    
 end
 
 [ImMag,handles] = makeDisplayable(handles,Ap);
@@ -2600,15 +2647,58 @@ else
     filename = strcat(path,fname);    
     
     %get complex image chip
-    chip = getFullResImage(handles);
+    chip = getFullResImage(handles,'complex');
     chip = handles.fft_sp(fftshift(handles.fft_im((chip))));
     meta = handles.meta;
     meta.ImageFormation.Processing.Type = 'Subaperture';
-    %TODO: update res, frequency support etc.
+
+    %update res, frequency support etc.
+    %this should work for spotlight collects
+
+    %get new BW and center position
+    pos = getPosition(handles.H);
+    SlowPercent = pos(3)/handles.ZpWidthAz;
+    %SlowCenter = ((pos(1)+pos(3)/2)-handles.ZpLimsAz(1))/handles.ZpWidthAz;
+    SlowCenter = (pos(1)+pos(3)/2)/size(chip,2);
+    FastPercent = pos(4)/handles.ZpWidthRn;
+    %FastCenter = ((pos(2)+pos(4)/2)-handles.ZpLimsRn(1))/handles.ZpWidthRn;
+    FastCenter = (pos(2)+pos(4)/2)/size(chip,1);
+
+    %update SICD fields
+    meta.Grid.Col.ImpRespBW = meta.Grid.Col.ImpRespBW*SlowPercent;
+    meta.Grid.Col.DeltaKCOAPoly = double(meta.Grid.Col.Sgn)*(SlowCenter-.5)/meta.Grid.Col.SS;
+    meta.Grid.Row.ImpRespBW = meta.Grid.Row.ImpRespBW*FastPercent;
+    meta.Grid.Row.DeltaKCOAPoly = double(meta.Grid.Row.Sgn)*(FastCenter-.5)/meta.Grid.Row.SS;
+    %set remaining fields to zero and re-derive
+    meta.Grid.Row = rmfield(meta.Grid.Row,'ImpRespWid');
+    meta.Grid.Row = rmfield(meta.Grid.Row,'DeltaK1');
+    meta.Grid.Row = rmfield(meta.Grid.Row,'DeltaK2');
+    meta.Grid.Col = rmfield(meta.Grid.Col,'ImpRespWid');
+    meta.Grid.Col = rmfield(meta.Grid.Col,'DeltaK1');
+    meta.Grid.Col = rmfield(meta.Grid.Col,'DeltaK2');
+    meta = derived_sicd_fields(meta);
+
+    %if weighting was applied, then set the field...TODO: add sampled
+    %weighting function so it can be undone
+    %we will assume any weighting from the input image has been removed
+    if get(handles.FilterGaussian,'Value')
+        WgtType = 'GAUSSIAN';
+    elseif get(handles.Filterx4,'Value')
+        WgtType = '1/X4';
+    elseif get(handles.FilterHamming,'Value')
+        WgtType = 'HAMMING';
+    elseif get(handles.FilterCosOnPed,'Value')
+        WgtType = 'COSINEONPED';
+    else
+        WgtType = 'UNIFORM';
+    end
+    meta.Grid.Col.WgtType = WgtType;
+    meta.Grid.Row.WgtType = WgtType;
+
     meta.ImageData.NumRows = size(chip,1);
     meta.ImageData.NumCols = size(chip,2);
     meta = add_sicd_corners(meta); 
-    
+
     writer = SICDWriter(filename,meta);
     writer.write_chip(chip.',[1 1]);
     delete(writer);    
@@ -2969,7 +3059,9 @@ function ResAnnotate_Callback(hObject, eventdata, handles)
 % Hint: get(hObject,'Value') returns toggle state of ResAnnotate
 
 
-function [chip,handles] = getFullResImage(handles)
+function [chip,handles] = getFullResImage(handles,format)
+
+if ~exist('format','var'); format = 'detected'; end;
 
 %return full res complex image chip for current position
 pos = getPosition(handles.H);
@@ -3031,10 +3123,11 @@ else
     Ap(ymin:ymax,xmin:xmax,1:size(phdchip,3)) = phdchip;    
 end
 
-[chip,handles] = makeDisplayable(handles,Ap);
-
-%chip = handles.fft_im(Ap);
-
+if ~strcmpi(format,'complex')
+    [chip,handles] = makeDisplayable(handles,Ap);
+else
+    chip = handles.fft_im(Ap);
+end
 
 % --- Executes on button press in FullResCheck.
 function FullResCheck_Callback(hObject, eventdata, handles)
@@ -3715,15 +3808,14 @@ pos = getPosition(handles.MeasureLine);
 StartPos = pos(1,:);
 StopPos = pos(2,:);
 
-DeltaX = (StartPos(1)-StopPos(1))*meta.Grid.Col.SS/cosd(meta.SCPCOA.TwistAng);
-DeltaY = (StartPos(2)-StopPos(2))*meta.Grid.Row.SS/cosd(meta.SCPCOA.GrazeAng);
-
-Distance = sqrt(DeltaX*DeltaX+DeltaY*DeltaY);
-
-%alternate method...get lat/lon for each point and then compute the
+%get lat/lon for each point and then compute the
 %distance between the points
-lla1 = point_slant_to_ground(StartPos',meta);
-lla2 = point_slant_to_ground(StopPos',meta);
+StartPos(1) = StartPos(1)+handles.aoi(1);
+StartPos(2) = StartPos(2)+handles.aoi(2);
+StopPos(1) = StopPos(1)+handles.aoi(1);
+StopPos(2) = StopPos(2)+handles.aoi(2);
+lla1 = point_slant_to_ground(fliplr(StartPos)',meta);
+lla2 = point_slant_to_ground(fliplr(StopPos)',meta);
 
 [d1km,d2km]=lldistkm(lla1(1:2),lla2(1:2));
 
@@ -3755,3 +3847,13 @@ end
 % //////////////////////////////////////////
 % /// CLASSIFICATION: UNCLASSIFIED       ///
 % //////////////////////////////////////////
+
+
+% --- Executes on button press in InversePolar.
+function InversePolar_Callback(hObject, eventdata, handles)
+% hObject    handle to InversePolar (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of InversePolar
+process_phd(hObject,handles);

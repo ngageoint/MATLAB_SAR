@@ -1,4 +1,4 @@
-function [ Distance Bearing Line ] = DrawLine( obj, Line )
+function [Distance,Bearing,Line] = DrawLine( obj, Line )
 
 if Line ~= []
     delete(Line);
@@ -29,7 +29,7 @@ function newlinepos(pos)
 handles = guidata(gcbo);
 distance = ComputeDistance(handles.mitm_hand, pos);
 meta = handles.mitm_hand.Metadata{handles.mitm_hand.Frame};
-Bearing = 90 + atan2((pos(2,2)-pos(1,2))*meta.Grid.Row.SS,(pos(2,1)-pos(1,1))*meta.Grid.Row.SS)*180/pi;
+Bearing = 90 + atan2((pos(2,2)-pos(1,2))*meta.Grid.Row.SS,(pos(2,1)-pos(1,1))*meta.Grid.Row.SS)*180/pi+meta.SCPCOA.AzimAng;
 if Bearing < 0
     Bearing = 360 + Bearing;
 end

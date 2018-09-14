@@ -195,12 +195,12 @@ PlotPolEllipse(handles.RxPlot,handles.RxAng,handles.RxEllip);
 
 pathstr=fileparts(mfilename('fullpath'));
 
-if isdeployed
-    %Trim off PolTool from path since decomposition folder is at the same
-    %level (not sure why)
-    pathlength = length(pathstr);
-    pathstr = pathstr(1:(pathlength-7));
-end
+% if isdeployed
+%     %Trim off PolTool from path since decomposition folder is at the same
+%     %level (not sure why)
+%     pathlength = length(pathstr);
+%     pathstr = pathstr(1:(pathlength-7));
+% end
 
 filestring1=dir(fullfile(pathstr, 'Decompositions', '*.m'));
 filestring2=dir(fullfile(pathstr, 'Decompositions', '*.decomp'));
