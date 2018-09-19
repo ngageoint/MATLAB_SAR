@@ -14,7 +14,8 @@ function [ gpos ] = point_image_to_ground( im_points, sicd_meta, varargin )
 %    sicd_meta   - SICD meta data structure
 %
 %       Property name     Description
-%       projection_type   'plane', 'hae', 'dem'.  Default plane.
+%       projection_type   'plane', 'hae', 'dem', 'best' (try DEM first
+%                         then HAE).  Default plane.
 %       gref              Ground plane reference point ECF coordinates (m).
 %                         Default is SCP.  Only valid if projection_type is
 %                         'plane'.
@@ -71,7 +72,7 @@ scp = [sicd_meta.GeoData.SCP.ECF.X; ...
 scp_llh = ecf_to_geodetic(scp);  % Also should be available in sicd_meta.GeoData.SCP.LLH
 scp_hae = scp_llh(3);
 p = inputParser;
-p.addParamValue('projection_type','plane', @(x) any(strcmp(x,{'plane','hae','hae_newton','dem'})));
+p.addParamValue('projection_type','plane', @(x) any(strcmp(x,{'plane','hae','hae_newton','dem','best'})));
 p.addParamValue('gref',scp, @(x) (size(x,1)==3)||(numel(x)==3)); % ECF (meters)
 if isfield(sicd_meta,'PFA')&&isfield(sicd_meta.PFA,'FPN')
     default_ugpn=[sicd_meta.PFA.FPN.X; sicd_meta.PFA.FPN.Y; sicd_meta.PFA.FPN.Z];
@@ -151,6 +152,16 @@ switch p.Results.projection_type
         gpos = point_to_DEM(r, rdot, arp_coa, varp_coa, scp, ...
             p.Results.delta_hae_max, p.Results.hae_nlim, p.Results.dem, ...
             p.Results.del_DISTrrc, p.Results.del_HDlim);
+    case 'best' % Best available.  Use DEM if valid, otherwise use HAE
+        try
+            gpos = point_to_DEM(r, rdot, arp_coa, varp_coa, scp, ...
+                p.Results.delta_hae_max, p.Results.hae_nlim, p.Results.dem, ...
+                p.Results.del_DISTrrc, p.Results.del_HDlim);
+        catch
+            warning('point_image_to_ground:invalid_dem','Best projection reverted to HAE.');
+            gpos = point_to_hae(r, rdot, arp_coa, varp_coa, scp, ...
+                p.Results.hae0, p.Results.delta_hae_max, p.Results.hae_nlim);
+        end
     otherwise
         % Unrecognized projection type
 end
