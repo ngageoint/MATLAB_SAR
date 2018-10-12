@@ -9,28 +9,34 @@ function [sicd_meta] = pfa_file(input_filename_cphd, output_filename_sicd, varar
 %
 % PFA_FILE(INPUT_FILENAME_CPHD, OUTPUT_FILENAME_SICD, 'PropertyName', PropertyValue, ...)
 %
-%       Property name     Description
-%       resolution        Desired resolution 3dB IPR width
-%                         ([range_resolution azimuth_resolution]) in
-%                         meters.  The necessary pulses and samples for
-%                         image formation at this resolution will be
-%                         calculated (taken from middle of data.) If
-%                         pulse_range and/or sample_range properties are
-%                         defined, then this parameter is ignored.  Default
-%                         is the full resolution that the collect supports.
-%       pulse_range       Set of pulses to use for image formation. (For
-%                         example, 1:1000.) Default is to calculate this
-%                         from resolution property.
-%       sample_range      Set of samples to use for image formation. (For
-%                         example, 1:1000.) Default is to calculate this
-%                         from resolution property.
-%       channel           Channel to use from CPHD file.  Default is 1.
-%       sample_rate       Samples per IPR.  Default is 1.5.
-%       max_block_size    When data can't be processed within memory, this
-%                         is the size of the blocks (in bytes) to use
-%                         process the data.
-%       quiet             If false, this reports stats on collection and
-%                         IFP parameters.  Default is true.
+%       Property name       Description
+%       resolution          Desired resolution 3dB IPR width
+%                           ([range_resolution azimuth_resolution]) in
+%                           meters.  The necessary pulses and samples for
+%                           image formation at this resolution will be
+%                           calculated (taken from middle of data.) If
+%                           pulse_range and/or sample_range properties are
+%                           defined, then this parameter is ignored.  Default
+%                           is the full resolution that the collect supports.
+%       pulse_range         Set of pulses to use for image formation. (For
+%                           example, 1:1000.) Default is to calculate this
+%                           from resolution property.
+%       sample_range        Set of samples to use for image formation. (For
+%                           example, 1:1000.) Default is to calculate this
+%                           from resolution property.
+%       focus_plane_normal  Optional unit vector perpendicular to the focus plane
+%                           pointing away from the Earth.  If not specified,
+%                           the normal to the Earth tangent plane at SCP is used.
+%                           If this parameter is "ipn" then the focus plane
+%                           normal 
+%                           is set to the image (slant) plane normal.
+%       channel             Channel to use from CPHD file.  Default is 1.
+%       sample_rate         Samples per IPR.  Default is 1.5.
+%       max_block_size      When data can't be processed within memory, this
+%                           is the size of the blocks (in bytes) to use
+%                           process the data.
+%       quiet               If false, this reports stats on collection and
+%                           IFP parameters.  Default is true.
 %
 % Note for larger datasets, this routine executes "out of core" storing of
 % intermediate results in temporary files, which should be automatically
@@ -52,14 +58,25 @@ function [sicd_meta] = pfa_file(input_filename_cphd, output_filename_sicd, varar
 %% Parse input parameters and read metadata
 ph_reader = open_ph_reader(input_filename_cphd);
 ifp_params = select_pulses_samples_cphd(ph_reader, varargin{:}); % Parse generic IFP parameters
+[~, nbdata] = ph_reader.read_cphd(ifp_params.pulse_range, [], 1);
+cphd_meta = ph_reader.get_meta();
+if ~strcmpi(cphd_meta.CollectionInfo.RadarMode.ModeType,'SPOTLIGHT') || ...
+        any(any(diff(nbdata.SRPPos)))  % Assure spotlight data
+    error('PFA_FILE:UNSUPPORTED_COLLECT_TYPE','Unsupported collection mode.  Currently only spotlight data is supported.');
+else
+    scp = nbdata.SRPPos(1,:);
+end
+fpn_default = wgs_84_norm(scp).'; % Compute normal to WGS_84 ellipsoid for default focus plane normal
 p1 = inputParser; % Parse PFA-specific parameters
 p1.KeepUnmatched=true;
-p1.addParamValue('max_block_size',[], @isscalar);
-p1.addParamValue('sample_rate',1.5, @isscalar);
+p1.addParameter('max_block_size',[], @isscalar);
+p1.addParameter('sample_rate',1.5, @isscalar);
+p1.addParameter('focus_plane_normal', fpn_default, @isvalid3vec);
 p1.FunctionName = mfilename;
 p1.parse(varargin{:});
 ifp_params.sample_rate = p1.Results.sample_rate;
 max_block_size = p1.Results.max_block_size;
+
 if isempty(max_block_size)
     if ispc
         [uv, sv] = memory;
@@ -72,14 +89,6 @@ if isempty(max_block_size)
     else % Can't gauge memory in UNIX, so just put arbitrary value
         max_block_size = 2^27; % About 100Meg
     end
-end
-cphd_meta = ph_reader.get_meta();
-[ignore, nbdata] = ph_reader.read_cphd(ifp_params.pulse_range, [], 1);
-if ~strcmpi(cphd_meta.CollectionInfo.RadarMode.ModeType,'SPOTLIGHT') || ...
-        any(any(diff(nbdata.SRPPos)))  % Assure spotlight data
-    error('PFA_FILE:UNSUPPORTED_COLLECT_TYPE','Unsupported collection mode.  Currently only spotlight data is supported.');
-else
-    scp = nbdata.SRPPos(1,:);
 end
 
 %% Compute some values we will need
@@ -117,17 +126,29 @@ end
 % k-space to be cycles/meter, which is consistent with SICD metadata.
 
 [ bi_pos, bi_freq_scale ] = pfa_bistatic_pos( nbdata.TxPos, nbdata.RcvPos, nbdata.SRPPos );
-% Temporary for testing fpn/ipn.  Actually this should be an input argument.
-ifp_params.fpn=wgs_84_norm(scp).'; % Compute normal to WGS_84 ellipsoid
 scp = [0 0 0]; % bistatic position is with respect to scp as origin
 ifp_params.ref_pulse_index  = floor(num_pulses/2); % Center pulse seems as good as any...
 arp_coa_vel = diff(bi_pos(ifp_params.ref_pulse_index + [1 -1],:));
 arp_coa = bi_pos(ifp_params.ref_pulse_index,:);
 srv=(arp_coa-scp).'; % slant range vector
-look=ifp_params.fpn*cross(srv,arp_coa_vel).';
-ifp_params.ipn=look*cross(srv,arp_coa_vel);
+ifp_params.ipn = cross(srv,arp_coa_vel);
+ifp_params.fpn = p1.Results.focus_plane_normal(:).';
+if all(string(ifp_params.fpn)=="ipn")
+    look = sign(fpn_default*ifp_params.ipn.');
+    fpn_ifp_flag = true;
+else
+    up_sign = sign(ifp_params.fpn*fpn_default.'); %focus plane normal should point away from Earth.
+    ifp_params.fpn = up_sign*ifp_params.fpn / sqrt(sum((ifp_params.fpn.^2))); %Ensure fpn is a unit vector pointing away from Earth.
+    look = ifp_params.fpn*ifp_params.ipn.';
+    fpn_ifp_flag = false;
+end
+ifp_params.ipn=look*ifp_params.ipn;
 ifp_params.ipn=ifp_params.ipn/norm(ifp_params.ipn); % Slant plane unit normal
-% end temporary portion here
+if fpn_ifp_flag
+    up_sign = sign(ifp_params.ipn*fpn_default.'); %focus plane normal should point away from Earth.
+    ifp_params.fpn = up_sign * ifp_params.ipn;
+end
+
 
 [k_a, k_sf] = pfa_polar_coords(bi_pos, scp, arp_coa, ifp_params.ipn, ifp_params.fpn); % Angular coordinate of each pulse
 % Converting from raw RF frequency of the received pulse to radial position
@@ -303,6 +324,14 @@ end
 
 close(wb_hand); % Finally, close waitbar
 
+end
+
+function bool = isvalid3vec(x)
+    if (all(string(x)=="ipn") || (isvector(x) && numel(x) == 3 && isnumeric(x)))
+        bool = true;
+    else
+        bool = false;
+    end    
 end
 
 % //////////////////////////////////////////
