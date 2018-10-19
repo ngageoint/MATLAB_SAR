@@ -32,7 +32,7 @@ function convert_complex_data(inFilename, outFilename, varargin)
 % //////////////////////////////////////////
 
 % Open the input file and output files.  Note the input file must be of a
-% format recognized by the tookbox open_reader.  Also, we'll only read the
+% format recognized by the toolbox open_reader.  Also, we'll only read the
 % first image of multi-image files.
 tempreader   = open_reader(inFilename);
 if iscell(tempreader)
@@ -43,6 +43,7 @@ end
 
 p = inputParser;
 p.addParamValue('output_format', 'sicd', @(x) any(strcmpi(x,{'sicd', 'nitf', 'sio', 'nrl'})))
+p.addParamValue('pixeltype', '');
 p.addParamValue('detect', false);
 p.addParamValue('frames', 1:length(reader));
 p.addParamValue('showWaitbar', true);
@@ -65,6 +66,16 @@ for i=1:length(p.Results.frames)
         constructor_args={'data_type', 'uint8', 'is_complex', false};
         if p.Results.showWaitbar, waitbar(0,h,'Computing image statistics...'); end
         datamean = estimatemean(reader{p.Results.frames(i)});
+    elseif strcmp(p.Results.pixeltype,'RE16I_IM16I') && ...
+            ~strcmp(sicdmeta.ImageData.PixelType,'RE16I_IM16I')
+        % Convert float to int by scaling to full signed int16 range
+        % Must update sicdmeta PixelType
+        % It's ok to change this temp copy since its use below pertains to
+        % both the input and output image ignoring PixelType.
+        constructor_args={'data_type', 'int16'};
+        sicdmeta.ImageData.PixelType = 'RE16I_IM16I';
+        if p.Results.showWaitbar, waitbar(0,h,'Computing image statistics...'); end
+        scl = scale_to_int16(reader{p.Results.frames(i)});
     else
         constructor_args={}; % Nothing to override.  Use values in SICD metadata structure
     end
@@ -94,6 +105,8 @@ for i=1:length(p.Results.frames)
         data = reader{p.Results.frames(i)}.read_chip([1 sicdmeta.ImageData.NumCols],[blockStart blockEnd]);
         if p.Results.detect
             writer.write_chip(amplitudetodensity(data,30,40,datamean), [1 blockStart]);
+        elseif exist('scl','var')
+            writer.write_chip(int16(data * scl), [1 blockStart]);
         else
             writer.write_chip(data, [1 blockStart]);
         end
@@ -116,6 +129,18 @@ function sample_mean = estimatemean(reader)
     data = abs(single(reader.read_chip([1 sicdmeta.ImageData.NumCols],...
             [1 sicdmeta.ImageData.NumRows],subsample)));
     sample_mean=mean(data(isfinite(data(:))));
+end
+
+
+% Use full int16 range and do not clip!
+% (else autofocus, apodization etc. can break)
+% Should this subsample like sample_mean() to avoid requiring full image in memory?
+function scl = scale_to_int16(reader)
+    sicdmeta = reader.get_meta();
+    data = reader.read_chip([1 sicdmeta.ImageData.NumCols],...
+                            [1 sicdmeta.ImageData.NumRows]);
+    ifd = isfinite(data(:));
+    scl = 32767 / max(max(abs(real(data(ifd)))), max(abs(imag(data(ifd)))));
 end
 
 % //////////////////////////////////////////
