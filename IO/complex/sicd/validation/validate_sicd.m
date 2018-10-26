@@ -967,7 +967,7 @@ switch SICD_meta.ImageFormation.ImageFormAlgo
                     ', PFA.STDeskew.Appled: True']);
             end
             % 2.12.2.9
-            % Row.TimeCOAPoly should be derivative of STDeskew (if it exist)
+            % Row.DeltaKCOAPoly should be derivative of STDeskew (if it exist)
             if isfield(SICD_meta.PFA,'STDeskew') && ...
                     SICD_meta.PFA.STDeskew.Applied && ...
                     isfield(SICD_meta.Grid.Row, 'DeltaKCOAPoly')
@@ -1016,6 +1016,21 @@ switch SICD_meta.ImageFormation.ImageFormAlgo
                     ['PFA.PolarAngPoly evaluated at PFA.PolarAngRefTime: ' ...
                     num2str(polar_ang_ref)]);
             end
+            % 2.12.2.12 Check that image plane normal points away from center of earth
+            if dot(ipn,SCP) < 0
+                validation_report = add_val_inc(validation_report, 'Error', ...
+                    'Image formation plane unit normal must point away from center of earth.', ...
+                    ['PFA.IPN: ' num2str(ipn) ]);
+            end
+            % Could also check whether ipn was roughly close to slant plane
+            % (or ground plane if Grid.ImagePlane says so)
+            % 2.12.2.13 Check that focus plane normal points away from center of earth
+            if dot(fpn,SCP) < 0
+                validation_report = add_val_inc(validation_report, 'Error', ...
+                    'Focus plane unit normal must point away from center of earth.', ...
+                    ['PFA.FPN: ' num2str(fpn) ]);
+            end
+            % Could also check whether fpn is close to wgs_84_norm(SCP)
         end
     case 'RMA'
         % 2.12.3.1
