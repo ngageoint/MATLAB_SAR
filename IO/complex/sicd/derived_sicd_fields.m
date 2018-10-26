@@ -306,7 +306,7 @@ if isfield(output_meta,'SCPCOA')&&all(isfield(output_meta.SCPCOA,{'ARPPos','ARPV
     ARP=[output_meta.SCPCOA.ARPPos.X output_meta.SCPCOA.ARPPos.Y output_meta.SCPCOA.ARPPos.Z];
     ARP_v=[output_meta.SCPCOA.ARPVel.X output_meta.SCPCOA.ARPVel.Y output_meta.SCPCOA.ARPVel.Z];
     uLOS = (SCP - ARP).'/norm(SCP - ARP);
-    left = cross(ARP/norm(ARP),ARP_v/norm(ARP));
+    left = cross(ARP/norm(ARP),ARP_v/norm(ARP_v));
     look = sign(left * uLOS);
     if ~isfield(output_meta.SCPCOA,'SideOfTrack')
         if look<0
