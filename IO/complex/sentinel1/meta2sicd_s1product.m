@@ -596,9 +596,14 @@ for i = 1:max(num_bursts,1)
     k_a = polyval(k_a_poly{az_rate_poly_ind}(end:-1:1), tau - az_t0(az_rate_poly_ind)); % Doppler FM rate
     k_t = (k_a * k_s)./(k_a - k_s); % Total Doppler Centroid Rate
     f_eta_c= polyval(data_dc_poly{dc_poly_ind}(end:-1:1), tau - dc_t0(dc_poly_ind)); % Doppler Centroid
-    eta = linspace(-double(output_meta{i}.ImageData.NumCols)*ss_zd_s/2, ...
-        double(output_meta{i}.ImageData.NumCols)*ss_zd_s/2, ...
-        double(output_meta{i}.ImageData.NumCols));
+    % This old implementation was imprecise.  The limits were one more than
+    % the spacing.  Should have been a -1 in here somewhere.  New
+    % formulation is clearer (at least to me). -WCS
+    % eta = linspace(-double(output_meta{i}.ImageData.NumCols)*ss_zd_s/2, ...
+    %     double(output_meta{i}.ImageData.NumCols)*ss_zd_s/2, ...
+    %     double(output_meta{i}.ImageData.NumCols));
+    eta = (-double(output_meta{i}.ImageData.SCPPixel.Col) * ss_zd_s) + ...
+        (0:double(output_meta{i}.ImageData.NumCols-1))*ss_zd_s;
     eta_c = - f_eta_c./k_a; % Beam center crossing time.  TimeCOA in SICD terminology
     eta_ref = eta_c - eta_c(1);
     [eta_grid, eta_ref_grid] = ndgrid(eta(cols), eta_ref(rows));
@@ -665,8 +670,13 @@ for i = 1:max(num_bursts,1)
     % Doppler times.  At least COA times will not overlap between bursts.
     if num_bursts>0 % STRIPMAP case uses another time origin different from first zero Doppler time
         time_offset = min(timecoa_sampled(:));
-        output_meta{i}.Timeline.CollectStart = start_s + ...
-            ((start_frac + time_offset)/SECONDS_IN_A_DAY);
+        % Datetime more precise than serial date number.  This precision is
+        % important for TOPSAR burst relationships.  Datetime introduced in
+        % MATLAB 2014b.
+        output_meta{i}.Timeline.CollectStart = ... % Without fractional seconds
+            datetime(start_s,'ConvertFrom','datenum');
+        output_meta{i}.Timeline.CollectStart.Second = ... % With fraction seconds
+            output_meta{i}.Timeline.CollectStart.Second + start_frac + time_offset;
         output_meta{i}.Timeline.CollectDuration = ...
             max(timecoa_sampled(:)) - min(timecoa_sampled(:));
         % Adjust all SICD fields that were dependent on start time

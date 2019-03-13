@@ -251,8 +251,20 @@ end
                         case 'xs:int'
                             str = num2str(sicdmeta,'%d');
                         case 'xs:dateTime'
-                            str = datestr(sicdmeta,...
-                                'yyyy-mm-ddTHH:MM:SS.FFFZ');
+                            if isa(sicdmeta,'double')
+                                str = datestr(sicdmeta,...
+                                    'yyyy-mm-ddTHH:MM:SS.FFFZ');
+                            elseif isdatetime(sicdmeta)
+                                % Display seconds separately since MATLAB
+                                % default functions only display
+                                % milliseconds.
+                                str = [datestr(sicdmeta, 'yyyy-mm-ddTHH:MM') ...
+                                    ':' num2str(sicdmeta.Second, 11) 'Z'];
+                                % MATLAB documentation says datetime
+                                % precision is good to nanoseconds so we
+                                % stop at nine decimal places (11 digits if
+                                % including whole seconds left of decimal).
+                            end
                         case 'xs:boolean'
                             if sicdmeta
                                 str = 'true';
@@ -264,8 +276,13 @@ end
                     end
                 else % Field not found in schema.  Guess class based on value
                     if any(strcmp(node_name,{'DateTime','CollectStart'})) % Special case: DateTime needs to be formatted/converted from double to string
-                        str = datestr(sicdmeta,...
-                            'yyyy-mm-ddTHH:MM:SS.FFFZ');
+                        if isa(sicdmeta,'double')
+                            str = datestr(sicdmeta,...
+                                'yyyy-mm-ddTHH:MM:SS.FFFZ');
+                        elseif isdatetime(sicdmeta)
+                            str = [datestr(sicdmeta, 'yyyy-mm-ddTHH:MM') ...
+                                ':' num2str(sicdmeta.Second, 11) 'Z'];
+                        end
                         class_str = 'xs:dateTime';
                     elseif isinteger(sicdmeta)
                         str = num2str(sicdmeta);
