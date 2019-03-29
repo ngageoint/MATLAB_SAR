@@ -259,7 +259,10 @@ end
                                 % default functions only display
                                 % milliseconds.
                                 str = [datestr(sicdmeta, 'yyyy-mm-ddTHH:MM') ...
-                                    ':' num2str(sicdmeta.Second, 11) 'Z'];
+                                    ':' char(regexp(num2str(sicdmeta.Second, '%012.9f'), ...
+                                    ... % Trim trailing zeros except one immediately after decimal
+                                    '\d*\.((\d*[^0])|(0))(?=0*$)','match')) ...
+                                    'Z'];
                                 % MATLAB documentation says datetime
                                 % precision is good to nanoseconds so we
                                 % stop at nine decimal places (11 digits if
@@ -275,14 +278,16 @@ end
                             error('SICDSTRUCT2XML:UNKNOWN_CLASS','Unrecognized class type.');
                     end
                 else % Field not found in schema.  Guess class based on value
-                    if any(strcmp(node_name,{'DateTime','CollectStart'})) % Special case: DateTime needs to be formatted/converted from double to string
-                        if isa(sicdmeta,'double')
-                            str = datestr(sicdmeta,...
-                                'yyyy-mm-ddTHH:MM:SS.FFFZ');
-                        elseif isdatetime(sicdmeta)
-                            str = [datestr(sicdmeta, 'yyyy-mm-ddTHH:MM') ...
-                                ':' num2str(sicdmeta.Second, 11) 'Z'];
-                        end
+                    if (any(strcmp(node_name,{'DateTime','CollectStart'})) && ... % Special case: DateTime needs to be formatted/converted from double to string
+                            isa(sicdmeta,'double'))
+                        str = datestr(sicdmeta,...
+                            'yyyy-mm-ddTHH:MM:SS.FFFZ');
+                        class_str = 'xs:dateTime';
+                    elseif isdatetime(sicdmeta)
+                        str = [datestr(sicdmeta, 'yyyy-mm-ddTHH:MM') ...
+                            ':' char(regexp(num2str(sicdmeta.Second, '%012.9f'), ...
+                            ... % Trim trailing zeros except one immediately after decimal
+                            '\d*\.((\d*[^0])|(0))(?=0*$)','match')) 'Z'];
                         class_str = 'xs:dateTime';
                     elseif isinteger(sicdmeta)
                         str = num2str(sicdmeta);
