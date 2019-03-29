@@ -155,7 +155,7 @@ tree.expand(root); % Start with first layer of hierarchy exposed
 
     % Helper function handles leaf node processing
     function [description, iconpath] = handle_leaf(fname, val)
-        if isnumeric(val)
+        if isnumeric(val) || isdatetime(val)
             iconpath = 'double_icon.GIF';
             if any(strcmpi(fname,{'CollectStart','DateTime'}))
                 % Special handling for date numbers

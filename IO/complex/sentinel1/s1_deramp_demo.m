@@ -107,7 +107,7 @@ delta_tau_s = 1/str2double(char(xp.evaluate(...
     'product/generalAnnotation/productInformation/rangeSamplingRate',domnode{SP})));
 tau_0 = str2double(char(xp.evaluate(...
     'product/imageAnnotation/imageInformation/slantRangeTime',domnode{SP})));
-eta = linspace(-num_lines_burst*delta_t_s/2, num_lines_burst*delta_t_s/2, num_lines_burst);
+eta = (-num_lines_burst*delta_t_s/2) + (0:(num_lines_burst-1))*delta_t_s;
 
 %% Compute all burst-dependent variables required for building deramp phase function
 num_bursts=str2double(xp.evaluate(...
@@ -145,10 +145,10 @@ for i = 1:num_bursts
         ['product/swathTiming/burstList/burst[' num2str(i) ']/firstValidSample'],domnode{SP})));
     lastSample{i} = str2num(char(xp.evaluate(...
         ['product/swathTiming/burstList/burst[' num2str(i) ']/lastValidSample'],domnode{SP})));
-    first_col(i) = find((firstSample{i}>0)&(lastSample{i}>0),1,'first');
-    last_col(i) = find((firstSample{i}>0)&(lastSample{i}>0),1,'last');
+    first_col(i) = find((firstSample{i}>=0)&(lastSample{i}>0),1,'first');
+    last_col(i) = find((firstSample{i}>=0)&(lastSample{i}>0),1,'last');
     first_row(i) = max(firstSample{i}) + 1; % +1 since we assume zero indexed
-    last_row(i) = min(lastSample{i}((firstSample{i}>0)&(lastSample{i}>0))) + 1;
+    last_row(i) = min(lastSample{i}((firstSample{i}>=0)&(lastSample{i}>0))) + 1;
 end
 % % Temp for testing full image
 % first_row(:) = 1;

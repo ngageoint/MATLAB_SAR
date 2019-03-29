@@ -1342,7 +1342,11 @@ oldpan = get(pan(src),'Enable');
 
 handles = guidata(src);
 mode = get(get(handles.figure1,'ModeManager'),'CurrentMode');
-blocking = ~isempty(mode)&&get(mode,'blocking');
+if verLessThan('matlab','9.5') % MATLAB 2018b on onward
+    blocking = ~isempty(mode)&&get(mode,'blocking');
+else
+    blocking = ~isempty(mode)&&mode.Blocking;
+end
 for i=1:numel(handles.rois)
     delete(handles.rois{i});
 end
@@ -1367,15 +1371,25 @@ for i = 1:numel(handles.rois_native)
             % way), zoom, and pan functions all attempt to alter the uimode
             % state. Note: imrect and imellipse don't seem to be affected
             % by the blocking state.
+            % This got a big messy because in 2018b, Mathworks changed how
+            % the stored the blocking state.
             if blocking
                 % We temporarily unblock, realizing could be dangerous.
-                set(mode,'blocking',false);
+                if verLessThan('matlab','9.5') % MATLAB 2018b on onward
+                    set(mode,'blocking',false);
+                else
+                    mode.Blocking = false;
+                end
             end
     end
     handles.rois{i} = feval(handles.rois_native{i}.type, ...
         handles.mitm_hand.AxesHandle, local_coords);
     if blocking  % Return to old state
-        set(mode,'blocking',true);
+        if verLessThan('matlab','9.5') % MATLAB 2018b on onward
+            set(mode,'blocking',true);
+        else
+            mode.Blocking = true;
+        end
     end
     handles.rois{i}.setColor(handles.rois_native{i}.color);
     handles.rois{i}.addNewPositionCallback(@(pos) ComputeRCSData(guidata(src)));
