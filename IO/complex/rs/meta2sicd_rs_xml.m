@@ -514,7 +514,7 @@ output_meta.RMA.INCA.DRateSFPoly = - conv(dop_rate_coefs_scaled.',r_ca) * ... % 
 % slightly over a RGZERO image, we don't know if the claimed sample spacing
 % in the native metadata is at our chosen SCP, or another point, or an
 % average across image or something else.
-output_meta.Grid.Col.SS = sqrt(vm_ca_sq(1)) * ss_zd_s * ...
+output_meta.Grid.Col.SS = sqrt(vm_ca_sq(1)) * abs(ss_zd_s) * ...
     output_meta.RMA.INCA.DRateSFPoly(1,1);
 output_meta.Grid.Col.ImpRespBW = dop_bw*abs(ss_zd_s)/output_meta.Grid.Col.SS; % Convert to azimuth spatial bandwidth (cycles per meter)
 output_meta.RMA.INCA.TimeCAPoly = [zd_t_scp; ss_zd_s/output_meta.Grid.Col.SS];
