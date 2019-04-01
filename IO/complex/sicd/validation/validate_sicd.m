@@ -1022,15 +1022,59 @@ switch SICD_meta.ImageFormation.ImageFormAlgo
                     'Image formation plane unit normal must point away from center of earth.', ...
                     ['PFA.IPN: ' num2str(ipn) ]);
             end
-            % Could also check whether ipn was roughly close to slant plane
-            % (or ground plane if Grid.ImagePlane says so)
-            % 2.12.2.13 Check that focus plane normal points away from center of earth
+            % 2.12.2.13 Check whether image plane is roughly close to claimed Grid.ImagePlane
+            if strcmpi(SICD_meta.Grid.ImagePlane,'SLANT')
+                % Cut-and-paste from RGAZCOMP section
+                ARP=[SICD_meta.SCPCOA.ARPPos.X SICD_meta.SCPCOA.ARPPos.Y SICD_meta.SCPCOA.ARPPos.Z];
+                ARP_v=[SICD_meta.SCPCOA.ARPVel.X SICD_meta.SCPCOA.ARPVel.Y SICD_meta.SCPCOA.ARPVel.Z];
+                uRG = (SCP - ARP)/norm(SCP - ARP); % Range unit vector
+                left = cross(ARP/norm(ARP),ARP_v/norm(ARP));
+                look = sign(left * uRG');
+                spn=-look*cross(uRG,ARP_v); spn=spn/norm(spn); % Slant plane unit normal
+                if acosd(dot(ipn/norm(ipn),spn)) > 2
+                    validation_report = add_val_inc(validation_report, 'Error', ...
+                        'Image plane claimed to be ''SLANT'', but not close to instantaneous slant plane at COA.', ...
+                        ['PFA.IPN: ' num2str(ipn) ...
+                        ', COA Slant: ' num2str(spn)]);
+                end
+            elseif strcmpi(SICD_meta.Grid.ImagePlane,'GROUND')
+                if acosd(dot(ipn/norm(ipn),wgs_84_norm(SCP))) > 5
+                    validation_report = add_val_inc(validation_report, 'Error', ...
+                        'Image plane claimed to be ''GROUND'', but not close to tangent to ellipsoid.', ...
+                        ['PFA.IPN: ' num2str(ipn) ...
+                        ', Normal to WGS_84: ' num2str(reshape(wgs_84_norm(SCP),1,[]))]);
+                end
+            end
+            % 2.12.2.14 Check that focus plane normal points away from center of earth
             if dot(fpn,SCP) < 0
                 validation_report = add_val_inc(validation_report, 'Error', ...
                     'Focus plane unit normal must point away from center of earth.', ...
                     ['PFA.FPN: ' num2str(fpn) ]);
             end
-            % Could also check whether fpn is close to wgs_84_norm(SCP)
+            % 2.12.2.15 Check whether focus plane is close to (within 5
+            % degrees) tangent to elliposid
+            if acosd(dot(fpn/norm(fpn),wgs_84_norm(SCP))) > 5
+                validation_report = add_val_inc(validation_report, 'Warning', ...
+                    'Focus plane unit normal generally tangent to ellipsoid.', ...
+                    ['PFA.FPN: ' num2str(fpn) ...
+                    ', Normal to WGS_84: ' num2str(reshape(wgs_84_norm(SCP),1,[]))]);
+            end
+            % 2.12.2.16 Check for polar angle consistency
+            if strcmp(SICD_meta.CollectionInfo.RadarMode.ModeType,'SPOTLIGHT')
+                % In spotlight mode, frequency support covers total polar angle span
+                % From polar angle polynomial (previously checked against ARPPoly)
+                polar_angle_bounds1 = sort(polyval(SICD_meta.PFA.PolarAngPoly(end:-1:1), ...
+                    [SICD_meta.ImageFormation.TStartProc, SICD_meta.ImageFormation.TEndProc]));
+                % From frequency support (previously checked against KCtr/ImpRespBW)
+                polar_angle_bounds2 = atan([SICD_meta.PFA.Kaz1 SICD_meta.PFA.Kaz2] / ...
+                    SICD_meta.PFA.Krg1);
+                if any(abs(rad2deg(polar_angle_bounds1-polar_angle_bounds2))>1e-3)
+                    validation_report = add_val_inc(validation_report, 'Error', ...
+                        'Polar angle bounds inconsistent.', ...
+                        ['From PFA.PolarAngPoly (rad): ' num2str(polar_angle_bounds1) ...
+                        ', From PFA.Kaz/Krg (rad): ' num2str(polar_angle_bounds2)]);
+                end
+            end
         end
     case 'RMA'
         % 2.12.3.1
@@ -1282,7 +1326,7 @@ switch SICD_meta.ImageFormation.ImageFormAlgo
                             ', Grid.Row.KCtr: ' num2str(SICD_meta.Grid.Row.KCtr)]);
                     end
                     % 2.12.3.4.12
-                    if abs((1/(norm(ca_vel)*SICD_meta.RMA.INCA.TimeCAPoly(2))) - ...
+                    if abs((1/(norm(ca_vel)*abs(SICD_meta.RMA.INCA.TimeCAPoly(2)))) - ...
                             SICD_meta.RMA.INCA.DRateSFPoly(1,1)) > 0.001
                         validation_report = add_val_inc(validation_report, 'Error', ...
                             'RMA.INCA fields inconsistent.', ...
