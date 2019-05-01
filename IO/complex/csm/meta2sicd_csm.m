@@ -248,17 +248,12 @@ for i=1:numbands
     %% Grid
     output_meta.Grid.Row.SS=get_hdf_attribute(dset_id(i),'Column Spacing');
     % output_meta.Grid.Row.SS=get_hdf_attribute(dset_id(i),'Column Time Interval')*SPEED_OF_LIGHT/2; % Exactly equivalent to above
-    output_meta.Grid.Col.SS=get_hdf_attribute(dset_id(i),'Line Spacing');
-    % How Lockheed does it:
-    % output_meta.Grid.Col.SS=velocity_mag_CA_SCP * ss_az_s * DRateSFPoly(1,1);
+    % Col.SS is derived after DRateSFPoly below, rather than used from this
+    % given field, so that SICD metadata can be internally consistent:
+    % output_meta.Grid.Col.SS=get_hdf_attribute(dset_id(i),'Line Spacing');
     output_meta.Grid.Row.ImpRespBW=2*get_hdf_attribute(group_id(i),'Range Focusing Bandwidth')/SPEED_OF_LIGHT;
-    dop_bw=get_hdf_attribute(group_id(i),'Azimuth Focusing Bandwidth'); % Doppler frequency
-    % Convert to azimuth spatial bandwidth (cycles per meter)
-    output_meta.Grid.Col.ImpRespBW=min(dop_bw*abs(ss_az_s),1)/output_meta.Grid.Col.SS; % Can't have more bandwidth in data than sample spacing
     output_meta.Grid.Row.DeltaK1=-output_meta.Grid.Row.ImpRespBW/2;
     output_meta.Grid.Row.DeltaK2=-output_meta.Grid.Row.DeltaK1;
-    output_meta.Grid.Col.DeltaK1=-(1/output_meta.Grid.Col.SS)/2;
-    output_meta.Grid.Col.DeltaK2=-output_meta.Grid.Col.DeltaK1;
     if strcmpi(output_meta.Grid.Row.WgtType.WindowName,'HAMMING') % The usual CSM weigting
         % Computation of broadening factor for uniform window is:
         % 2 * fzero(@(x) (sin(pi*x)/(pi*x)) - (1/sqrt(2)), .1)
@@ -267,13 +262,6 @@ for i=1:numbands
             a*(sin(pi*x)/(pi*x)) + ((1-a)*(sin(pi*(x-1))/(pi*(x-1)))/2) + ...
             ((1-a)*(sin(pi*(x+1))/(pi*(x+1)))/2) - a/sqrt(2), .1);
         output_meta.Grid.Row.ImpRespWid = row_broadening_factor/output_meta.Grid.Row.ImpRespBW;
-    end
-    if strcmpi(output_meta.Grid.Col.WgtType.WindowName,'HAMMING') % The usual CSM weigting
-        a = str2double(output_meta.Grid.Col.WgtType.Parameter.value); % Generalized Hamming window parameter
-        col_broadening_factor = 2*fzero(@(x) ...
-            a*(sin(pi*x)/(pi*x)) + ((1-a)*(sin(pi*(x-1))/(pi*(x-1)))/2) + ...
-            ((1-a)*(sin(pi*(x+1))/(pi*(x+1)))/2) - a/sqrt(2), .1);
-        output_meta.Grid.Col.ImpRespWid = col_broadening_factor/output_meta.Grid.Col.ImpRespBW;
     end
 
     %% Timeline
@@ -319,7 +307,38 @@ for i=1:numbands
     output_meta.RMA.INCA.R_CA_SCP = t_rg_scp*SPEED_OF_LIGHT/2;
     t_az_scp = t_az_first + ...
         (ss_az_s*double(output_meta.ImageData.SCPPixel.Col)); % Zero doppler time of SCP
-    output_meta.RMA.INCA.TimeCAPoly = [t_az_scp + ref_time_offset; ... % With respect to start of collect
+    % Compute DRateSFPoly
+    % For the purposes of the DRateSFPoly computation, we ignore any
+    % changes in velocity or doppler rate over the azimuth dimension.
+    pos_coefs = [P_x(:) P_y(:) P_z(:)];
+    % Velocity is derivate of position.
+    vel_coefs=pos_coefs(1:end-1,:).*repmat(((size(pos_coefs,1)-1):-1:1)',[1 3]);
+    scp_ca_time = t_az_scp + ref_time_offset;
+    vel_x = polyval(vel_coefs(:,1), scp_ca_time);
+    vel_y = polyval(vel_coefs(:,2), scp_ca_time);
+    vel_z = polyval(vel_coefs(:,3), scp_ca_time);
+    vm_ca_sq = vel_x.^2 + vel_y.^2 + vel_z.^2; % Magnitude of the velocity squared
+    r_ca = [output_meta.RMA.INCA.R_CA_SCP; 1]; % Polynomial representing range as a function of range distance from SCP
+    if exist('ss_rg_s','var')
+        dop_rate_poly_rg_shifted=polyshift(dop_rate_poly_rg, t_rg_scp-t_rg_ref);
+        dop_rate_poly_rg_scaled=dop_rate_poly_rg_shifted.*...
+            (ss_rg_s/output_meta.Grid.Row.SS).^(0:(length(dop_rate_poly_rg)-1)).';
+    end
+    output_meta.RMA.INCA.DRateSFPoly = - conv(dop_rate_poly_rg_scaled,r_ca) * ... % Multiplication of two polynomials is just a convolution of their coefficients
+        SPEED_OF_LIGHT / (2 * fc * vm_ca_sq(1)); % Assumes a SGN of -1
+    % Fields dependent on Doppler rate
+    output_meta.Grid.Col.SS = sqrt(vm_ca_sq(1)) * ss_az_s * output_meta.RMA.INCA.DRateSFPoly(1,1);
+    dop_bw = get_hdf_attribute(group_id(i),'Azimuth Focusing Bandwidth'); % Doppler frequency
+    output_meta.Grid.Col.ImpRespBW = ... % Convert to azimuth spatial bandwidth (cycles per meter)
+        min(dop_bw*abs(ss_az_s),1)/output_meta.Grid.Col.SS; % Can't have more bandwidth in data than sample spacing
+    if strcmpi(output_meta.Grid.Col.WgtType.WindowName,'HAMMING') % The usual CSM weigting
+        a = str2double(output_meta.Grid.Col.WgtType.Parameter.value); % Generalized Hamming window parameter
+        col_broadening_factor = 2*fzero(@(x) ...
+            a*(sin(pi*x)/(pi*x)) + ((1-a)*(sin(pi*(x-1))/(pi*(x-1)))/2) + ...
+            ((1-a)*(sin(pi*(x+1))/(pi*(x+1)))/2) - a/sqrt(2), .1);
+        output_meta.Grid.Col.ImpRespWid = col_broadening_factor/output_meta.Grid.Col.ImpRespBW;
+    end
+    output_meta.RMA.INCA.TimeCAPoly = [scp_ca_time; ... % With respect to start of collect
         ss_az_s/output_meta.Grid.Col.SS]; % Convert zero doppler spacing from sec/pixels to sec/meters
     % Compute DopCentroidPoly/DeltaKCOAPoly
     if exist('ss_rg_s','var')
@@ -332,33 +351,17 @@ for i=1:numbands
         % Shift 1D polynomials to account for SCP
         dop_poly_az_shifted=polyshift(dop_poly_az, t_az_scp-t_az_ref);
         dop_poly_rg_shifted=polyshift(dop_poly_rg, t_rg_scp-t_rg_ref);
-        dop_rate_poly_rg_shifted=polyshift(dop_rate_poly_rg, t_rg_scp-t_rg_ref);
         % Scale 1D polynomials to from Hz/s^n to Hz/m^n
         dop_poly_az_scaled=dop_poly_az_shifted.'.*...
             (ss_az_s/output_meta.Grid.Col.SS).^(0:(length(dop_poly_az)-1));
         dop_poly_rg_scaled=dop_poly_rg_shifted.*...
             (ss_rg_s/output_meta.Grid.Row.SS).^(0:(length(dop_poly_rg)-1)).';
-        dop_rate_poly_rg_scaled=dop_rate_poly_rg_shifted.*...
-            (ss_rg_s/output_meta.Grid.Row.SS).^(0:(length(dop_rate_poly_rg)-1)).';
         output_meta.RMA.INCA.DopCentroidPoly(2:end,1)=dop_poly_rg_scaled(2:end);
         output_meta.RMA.INCA.DopCentroidPoly(1,2:end)=dop_poly_az_scaled(2:end);
         output_meta.RMA.INCA.DopCentroidCOA=true;
         output_meta.Grid.Col.DeltaKCOAPoly=...
             output_meta.RMA.INCA.DopCentroidPoly*ss_az_s/output_meta.Grid.Col.SS;
     end
-    % Compute DRateSFPoly
-    % For the purposes of the DRateSFPoly computation, we ignore any
-    % changes in velocity or doppler rate over the azimuth dimension.
-    pos_coefs = [P_x(:) P_y(:) P_z(:)];
-    % Velocity is derivate of position.
-    vel_coefs=pos_coefs(1:end-1,:).*repmat(((size(pos_coefs,1)-1):-1:1)',[1 3]);
-    vel_x = polyval(vel_coefs(:,1), output_meta.RMA.INCA.TimeCAPoly(1));
-    vel_y = polyval(vel_coefs(:,2), output_meta.RMA.INCA.TimeCAPoly(1));
-    vel_z = polyval(vel_coefs(:,3), output_meta.RMA.INCA.TimeCAPoly(1));
-    vm_ca_sq = vel_x.^2 + vel_y.^2 + vel_z.^2; % Magnitude of the velocity squared
-    r_ca = [output_meta.RMA.INCA.R_CA_SCP; 1]; % Polynomial representing range as a function of range distance from SCP
-    output_meta.RMA.INCA.DRateSFPoly = - conv(dop_rate_poly_rg_scaled,r_ca) * ... % Multiplication of two polynomials is just a convolution of their coefficients
-        SPEED_OF_LIGHT / (2 * fc * vm_ca_sq(1)); % Assumes a SGN of -1
     % TimeCOAPoly
     % TimeCOAPoly=TimeCA+(DopCentroid/dop_rate)
     % Since we can't evaluate this equation analytically, we will evaluate
