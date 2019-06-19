@@ -100,7 +100,7 @@ function [elevations, lats, lons, meta] = read_DTED( filename, LL, UR )
         lon_orig_dir == 'W'  ||  lon_orig_dir == 'w')
         lon_orig_deg = -lon_orig_deg;
     end
-    meta.lon_orig_dd = sign(lat_orig_deg)*polyval(abs([lon_orig_sec lon_orig_min lon_orig_deg]),1/60);
+    meta.lon_orig_dd = sign(lon_orig_deg)*polyval(abs([lon_orig_sec lon_orig_min lon_orig_deg]),1/60);
     
     meta.lat_sw_corn      = fread(fid, 7, 'uint8=>char')';
     meta.lon_sw_corn      = fread(fid, 8, 'uint8=>char')';
@@ -132,21 +132,16 @@ function [elevations, lats, lons, meta] = read_DTED( filename, LL, UR )
     meta.mult_acc_out_flg = fread(fid, 2, 'uint8=>char')';
 
     % Build the reference latitude and longitude values
-    %PJC 2014-05-21 fixed bug for negative lats or lons
-    lats = (0:(meta.num_lat_lines-1))*meta.lat_spacing_dd + meta.lat_orig_dd*sign(LL(1));
-    lons = (0:(meta.num_lon_lines-1))*meta.lon_spacing_dd + meta.lon_orig_dd*sign(LL(2));
-
+    lats = (0:(meta.num_lat_lines-1))*meta.lat_spacing_dd + meta.lat_orig_dd;
+    lons = (0:(meta.num_lon_lines-1))*meta.lon_spacing_dd + meta.lon_orig_dd;
 
     % If range of lat/lons is given, constrain window to read
     if nargin>2
-        latTmp = [find(lats<=LL(1),1,'last') find(lats<=UR(1),1,'last')];
-        lower_lat_index = min(latTmp);
-        upper_lat_index = max(latTmp);
+        lower_lat_index = find(lats>=LL(1),1,'first');
+        upper_lat_index = find(lats<=UR(1),1,'last');
         lats = lats(lower_lat_index:upper_lat_index);
-        
-        lonTmp = [find(lons<=LL(2),1,'last') find(lons<=UR(2),1,'last')];
-        lower_lon_index = min(lonTmp);
-        upper_lon_index = max(lonTmp);
+        lower_lon_index = find(lons>=LL(2),1,'first');
+        upper_lon_index = find(lons<=UR(2),1,'last');
         lons = lons(lower_lon_index:upper_lon_index);
     else
         lower_lat_index=1;
