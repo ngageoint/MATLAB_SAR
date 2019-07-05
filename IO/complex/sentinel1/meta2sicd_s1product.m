@@ -86,7 +86,7 @@ common_meta.GeoData.EarthModel = 'WGS_84';
 % in something more precise.
 num_grid_points=str2double(xp.evaluate(...
     'count(product/geolocationGrid/geolocationGridPointList/geolocationGridPoint)',domnode));
-[scp_col, scp_row, lat, lon, hgt] = deal(zeros(num_grid_points,1));
+[scp_col, scp_row, x, y, z] = deal(zeros(num_grid_points,1));
 for j = 1:num_grid_points
     scp_col(j) = str2double(xp.evaluate(...
         ['product/geolocationGrid/geolocationGridPointList/geolocationGridPoint[' num2str(j) ']/line'],...
@@ -94,19 +94,22 @@ for j = 1:num_grid_points
     scp_row(j) = str2double(xp.evaluate(...
         ['product/geolocationGrid/geolocationGridPointList/geolocationGridPoint[' num2str(j) ']/pixel'],...
         domnode));
-    lat(j) = str2double(xp.evaluate(...
+    lat = str2double(xp.evaluate(...
         ['product/geolocationGrid/geolocationGridPointList/geolocationGridPoint[' num2str(j) ']/latitude'],...
         domnode));
-    lon(j) = str2double(xp.evaluate(...
+    lon = str2double(xp.evaluate(...
         ['product/geolocationGrid/geolocationGridPointList/geolocationGridPoint[' num2str(j) ']/longitude'],...
         domnode));
-    hgt(j) = str2double(xp.evaluate(...
+    hgt = str2double(xp.evaluate(...
         ['product/geolocationGrid/geolocationGridPointList/geolocationGridPoint[' num2str(j) ']/height'],...
         domnode));
+    % Can't interpolate across international date line -180/180 longitude,
+    % so move to ECF space from griddata interpolation
+    [x(j), y(j), z(j)] = geodetic_to_ecf(lat, lon, hgt);
 end
-scp_lats = griddata(scp_col, scp_row, lat, center_cols, center_rows);
-scp_lons = griddata(scp_col, scp_row, lon, center_cols, center_rows);
-scp_hgts = griddata(scp_col, scp_row, hgt, center_cols, center_rows);
+scp_x = griddata(scp_col, scp_row, x, center_cols, center_rows);
+scp_y = griddata(scp_col, scp_row, y, center_cols, center_rows);
+scp_z = griddata(scp_col, scp_row, z, center_cols, center_rows);
 
 %% Grid
 common_meta.Grid.ImagePlane = upper(strtok(char(xp.evaluate(...
@@ -702,9 +705,9 @@ for i = 1:max(num_bursts,1)
     % to bootstrap (point_image_to_ground uses it only to find tangent to
     % ellipsoid.)  Then we will immediately replace it with a more precise
     % value from point_image_to_ground and the SICD sensor model.
-    output_meta{i}.GeoData.SCP.LLH.Lat = scp_lats(i);
-    output_meta{i}.GeoData.SCP.LLH.Lon = scp_lons(i);
-    output_meta{i}.GeoData.SCP.LLH.HAE = scp_hgts(i);
+    output_meta{i}.GeoData.SCP.ECF.X = scp_x(i);
+    output_meta{i}.GeoData.SCP.ECF.Y = scp_y(i);
+    output_meta{i}.GeoData.SCP.ECF.Z = scp_z(i);
     % Note that blindly using the heights in the geolocationGridPointList
     % can result in some confusing results.  Since the scenes can be
     % extremely large, you could easily be using a height in your
@@ -718,11 +721,11 @@ for i = 1:max(num_bursts,1)
     % Note also that some Sentinel-1 data we have see has different heights
     % in the geolocation grid for polarimetric channels from the same
     % swath/burst!?!
-    ecf=geodetic_to_ecf([output_meta{i}.GeoData.SCP.LLH.Lat ...
-        output_meta{i}.GeoData.SCP.LLH.Lon output_meta{i}.GeoData.SCP.LLH.HAE]);
-    output_meta{i}.GeoData.SCP.ECF.X=ecf(1);
-    output_meta{i}.GeoData.SCP.ECF.Y=ecf(2);
-    output_meta{i}.GeoData.SCP.ECF.Z=ecf(3);
+    llh = ecf_to_geodetic([output_meta{i}.GeoData.SCP.ECF.X ...
+        output_meta{i}.GeoData.SCP.ECF.Y output_meta{i}.GeoData.SCP.ECF.Z]);
+    output_meta{i}.GeoData.SCP.LLH.Lat = llh(1);
+    output_meta{i}.GeoData.SCP.LLH.Lon = llh(2);
+    output_meta{i}.GeoData.SCP.LLH.HAE = llh(3);
     % Now that SCP has been populated, populate GeoData.SCP more precisely.
     ecf = point_image_to_ground([common_meta.ImageData.SCPPixel.Row; common_meta.ImageData.SCPPixel.Col], output_meta{i});
     output_meta{i}.GeoData.SCP.ECF.X=ecf(1);

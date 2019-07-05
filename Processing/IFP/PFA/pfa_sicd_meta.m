@@ -25,7 +25,7 @@ function [sicdmeta] = pfa_sicd_meta(meta, nbdata, ifp_params)
 sicdmeta = meta2sicd_cphdx(meta,nbdata,ifp_params.channel);
 
 % Image Creation
-sicdmeta.ImageCreation.DateTime = datestr(now());
+sicdmeta.ImageCreation.DateTime = now();
 sicdmeta.ImageCreation.Profile  = 'pfa_sicd_meta.m';
 
 % ImageData
