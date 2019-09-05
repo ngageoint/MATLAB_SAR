@@ -18,7 +18,7 @@ if boolout
         try
             boolout=strcmpi(hdf5read(filename,'/','Mission ID'), 'CSK');
         catch % Is there a more direct way to check for attribute existence first?
-            false;
+            boolout=false;
         end
     end
 end

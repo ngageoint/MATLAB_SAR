@@ -22,20 +22,18 @@ function write_sicd_security_tags(obj)
 % Always writing version 2.1 NITF
 
 % Security is limited in the SICD XML structure.  We fill in what we can.
-if isfield(obj.sicdmeta,'CollectionInfo')&&isfield(obj.sicdmeta.CollectionInfo,'Classification')
+if isfield(obj.sicdmeta,'CollectionInfo') && ...
+        isfield(obj.sicdmeta.CollectionInfo,'Classification')&& ...
+        ~isempty(obj.sicdmeta.CollectionInfo.Classification)
     classification = obj.sicdmeta.CollectionInfo.Classification;
 else
     classification = ' ';
 end
-code_index = regexp(classification,'/[^/]');
-if isempty(code_index)
-    code = '';
-else
-    code = classification((code_index(1)+1):end);
-end
+codes = strsplit(classification,'/');  % Cell array
+codes = strjoin(cellfun(@(x) x(1:min(2,end)), codes(2:end), 'UniformOutput', false));
 fwriten(obj.FID, classification(1), 1); % CLAS
 fwriten(obj.FID, 'US',      2);  % CLSY
-fwriten(obj.FID, code,      11); % CODE
+fwriten(obj.FID, codes,      11); % CODE
 fwriten(obj.FID, '',        2);  % CTLH
 fwriten(obj.FID, '',        20); % REL
 fwriten(obj.FID, '',        2);  % DCTP
@@ -55,4 +53,3 @@ end
 % //////////////////////////////////////////
 % /// CLASSIFICATION: UNCLASSIFIED       ///
 % //////////////////////////////////////////
-
