@@ -330,8 +330,8 @@ if isfield(SICD_meta.Grid.Row,'WgtType') % WgtType is optional field
             numwgts = numel(SICD_meta.Grid.Row.WgtFunct);
             if (isempty(rowFun) && ...% sicdweight2fun way of passing UNIFORM
                     any(diff(SICD_meta.Grid.Row.WgtFunct))) || ...
-                    (max(abs(SICD_meta.Grid.Row.WgtFunct - ... % Non-uniform case
-                    rowFun(numwgts))) > WGT_TOL)
+                    (~isempty(rowFun) && (max(abs(SICD_meta.Grid.Row.WgtFunct - ... % Non-uniform case
+                    rowFun(numwgts))) > WGT_TOL))
                 validation_report = add_val_inc(validation_report, 'Error', ...
                     'Row.WgtFunct values inconsistent with Row.WgtType', ...
                     ['Grid.Row.WgtType.WindowName: ' SICD_meta.Grid.Row.WgtType.WindowName]);
@@ -359,8 +359,8 @@ if isfield(SICD_meta.Grid.Col,'WgtType') % WgtType is optional field
             numwgts = numel(SICD_meta.Grid.Col.WgtFunct);
             if (isempty(colFun) && ...% sicdweight2fun way of passing UNIFORM
                     any(diff(SICD_meta.Grid.Col.WgtFunct))) || ...
-                    (max(abs(SICD_meta.Grid.Col.WgtFunct - ... % Non-uniform case
-                    colFun(numwgts))) > WGT_TOL)
+                    (~isempty(rowFun) && (max(abs(SICD_meta.Grid.Col.WgtFunct - ... % Non-uniform case
+                    colFun(numwgts))) > WGT_TOL))
                 validation_report = add_val_inc(validation_report, 'Error', ...
                     'Col.WgtFunct values inconsistent with Col.WgtType', ...
                     ['Grid.Col.WgtType.WindowName: ' SICD_meta.Grid.Col.WgtType.WindowName]);
