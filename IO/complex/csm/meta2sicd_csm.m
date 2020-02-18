@@ -327,7 +327,7 @@ for i=1:numbands
     output_meta.RMA.INCA.DRateSFPoly = - conv(dop_rate_poly_rg_scaled,r_ca) * ... % Multiplication of two polynomials is just a convolution of their coefficients
         SPEED_OF_LIGHT / (2 * fc * vm_ca_sq(1)); % Assumes a SGN of -1
     % Fields dependent on Doppler rate
-    output_meta.Grid.Col.SS = sqrt(vm_ca_sq(1)) * ss_az_s * output_meta.RMA.INCA.DRateSFPoly(1,1);
+    output_meta.Grid.Col.SS = sqrt(vm_ca_sq(1)) * abs(ss_az_s) * output_meta.RMA.INCA.DRateSFPoly(1,1);
     dop_bw = get_hdf_attribute(group_id(i),'Azimuth Focusing Bandwidth'); % Doppler frequency
     output_meta.Grid.Col.ImpRespBW = ... % Convert to azimuth spatial bandwidth (cycles per meter)
         min(dop_bw*abs(ss_az_s),1)/output_meta.Grid.Col.SS; % Can't have more bandwidth in data than sample spacing

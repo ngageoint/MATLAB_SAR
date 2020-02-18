@@ -3,6 +3,7 @@ Aperture Tool,ApertureTool,Complex,Yes,All
 Crop Image(s),CropImage,Complex,Yes,All
 CSI,csiparamsgui,Complex,Yes,No
 Image2KML,Image2KMLGUI,All,Yes,No
+Image Geometry Tool,ImageGeometryTool,Complex,Yes,No
 Meta Icon Viewer,MIM,All,Yes,No
 PDV,pdvparamsgui,Complex,Yes,No
 PolTool,PolTool,Complex,Yes,Yes

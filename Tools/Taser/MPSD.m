@@ -1,4 +1,4 @@
-function [freq mpsd_out] = MPSD(filename,PlotFlag,StartPulse,StopPulse,Stride,ProcessingPulses,Channel,wb)
+function [freq,mpsd_out] = MPSD(filename,PlotFlag,StartPulse,StopPulse,Stride,ProcessingPulses,Channel,wb)
 %MPSD Computes the MPSD (Mean Power Spectral Density).  
 %
 % INPUTS:
