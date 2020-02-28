@@ -352,17 +352,18 @@ pols = textscan(char(xp.evaluate(...
     xpath_str({'product','sourceAttributes','radarParameters','polarizations'}),...
     xml_domnode)),'%s');
 pols = pols{1};
+M = struct('H','H','V','V','C','RHC');
 tx_pols = unique(cellfun(@(x) x(1), pols));
 for i=1:numel(pols)
     output_meta.RadarCollection.RcvChannels.ChanParameters(i).TxRcvPolarization = ...
-        [pols{i}(1) ':' pols{i}(2)];
+        [M.(pols{i}(1)) ':' M.(pols{i}(2))];
 end
 if isscalar(tx_pols) % Only one transmit polarization
-    output_meta.RadarCollection.TxPolarization = tx_pols;
+    output_meta.RadarCollection.TxPolarization = M.(tx_pols);
 else % Multiple transmit polarizations
     output_meta.RadarCollection.TxPolarization = 'SEQUENCE';
     for i = 1:numel(tx_pols)
-        output_meta.RadarCollection.TxSequence.TxStep(i).TxPolarization = tx_pols(i);
+        output_meta.RadarCollection.TxSequence.TxStep(i).TxPolarization = M.(tx_pols(i));
     end
 end
 % Another way to get polarimetric channels:

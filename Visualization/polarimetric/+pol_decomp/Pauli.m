@@ -7,10 +7,23 @@ function out = Pauli(data, sicd_meta)
 
 if (nargin>1) && isfield(sicd_meta,'ImageFormation') && ...
         isfield(sicd_meta.ImageFormation,'TxRcvPolarizationProc')
+    % Try standard linear polarizations first
     HH_ind=find(strcmpi('H:H',sicd_meta.ImageFormation.TxRcvPolarizationProc));
     HV_ind=find(strcmpi('H:V',sicd_meta.ImageFormation.TxRcvPolarizationProc));
     VH_ind=find(strcmpi('V:H',sicd_meta.ImageFormation.TxRcvPolarizationProc));
     VV_ind=find(strcmpi('V:V',sicd_meta.ImageFormation.TxRcvPolarizationProc));
+    % Less common circular polarization next in not linear
+    if isempty([HH_ind HV_ind VH_ind VV_ind])
+        pols = cellfun(@(x) split(x,':'), sicd_meta.ImageFormation.TxRcvPolarizationProc, 'UniformOutput', false);
+        HH_ind = find(cellfun(@(x) strcmpi(x{1},'LHC') && ...
+            (strcmpi(x{2},'LHC') || x{2}=='H'), pols));
+        HV_ind = find(cellfun(@(x) strcmpi(x{1},'LHC') && ...
+            (strcmpi(x{2},'RHC') || x{2}=='V'), pols));
+        VH_ind = find(cellfun(@(x) strcmpi(x{1},'RHC') && ...
+            (strcmpi(x{2},'LHC') || x{2}=='V'), pols));
+        VV_ind = find(cellfun(@(x) strcmpi(x{1},'RHC') && ...
+            (strcmpi(x{2},'RHC') || x{2}=='H'), pols));
+    end
 else % Make band assumptions based on order
     switch size(data,3)
         case 2 % Co/cross
