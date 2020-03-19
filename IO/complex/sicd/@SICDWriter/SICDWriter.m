@@ -95,6 +95,8 @@ classdef SICDWriter < SARImageWriter
             obj.NITF_header_length = 401 + (16 * obj.NumIS);
             obj.DES_data = sicdstruct2xml(sicdmeta, 'inc_newline', true, ...
                 'inc_padding', true, 'pad_depth', 3, 'file_type', 'SICD');
+            % Allow for non-ASCII characters
+            obj.DES_data = unicode2native(obj.DES_data,'UTF-8');
             
             % Open the file and write the NITF file header data.
             obj.FID = fopen(filename,'w', 'b');
@@ -168,7 +170,7 @@ classdef SICDWriter < SARImageWriter
             % Write DES
             obj.fseek(obj.FID, pos, 'bof'); % Seek to end of image data
             obj.write_sicd_dessubhdr();
-            fwrite(obj.FID,obj.DES_data);
+            fwrite(obj.FID,obj.DES_data,'uint8');
             % Close file
             fclose(obj.FID);
         end
