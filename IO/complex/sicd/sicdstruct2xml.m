@@ -27,8 +27,8 @@ doc = com.mathworks.xml.XMLUtils.createDocument(p1.Results.file_type);
 root_node = doc.getDocumentElement;
 switch p1.Results.file_type
     case 'SICD'
-        schema_filename = which('SICD_schema_V1.1.0_2014_09_30.xsd');
-        root_node.setAttribute('xmlns','urn:SICD:1.1.0');
+        schema_filename = which('SICD_schema_V1.2.1_2018_12_13.xsd');
+        root_node.setAttribute('xmlns','urn:SICD:1.2.1');
         % SICD version also written in write_nitf_dessubhdr.m
     case 'CPHD'
         schema_filename = which('CPHD_schema_V0.3.xsd');
