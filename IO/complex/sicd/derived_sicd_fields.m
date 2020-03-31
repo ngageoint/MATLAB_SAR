@@ -302,9 +302,13 @@ end
 if isfield(output_meta,'SCPCOA')&&all(isfield(output_meta.SCPCOA,{'ARPPos','ARPVel'}))&&...
         isfield(output_meta,'GeoData')&&isfield(output_meta.GeoData,'SCP')&&...
         isfield(output_meta.GeoData.SCP,'ECF')
-    SCP=[output_meta.GeoData.SCP.ECF.X output_meta.GeoData.SCP.ECF.Y output_meta.GeoData.SCP.ECF.Z];
-    ARP=[output_meta.SCPCOA.ARPPos.X output_meta.SCPCOA.ARPPos.Y output_meta.SCPCOA.ARPPos.Z];
-    ARP_v=[output_meta.SCPCOA.ARPVel.X output_meta.SCPCOA.ARPVel.Y output_meta.SCPCOA.ARPVel.Z];
+    % GroundRange computation is particularly sensitive to precision, so we
+    % wrap all of these in double, just in case they were passed in as
+    % single.  The values themselves don't need double precision, but the
+    % computation does.
+    SCP=double([output_meta.GeoData.SCP.ECF.X output_meta.GeoData.SCP.ECF.Y output_meta.GeoData.SCP.ECF.Z]);
+    ARP=double([output_meta.SCPCOA.ARPPos.X output_meta.SCPCOA.ARPPos.Y output_meta.SCPCOA.ARPPos.Z]);
+    ARP_v=double([output_meta.SCPCOA.ARPVel.X output_meta.SCPCOA.ARPVel.Y output_meta.SCPCOA.ARPVel.Z]);
     uLOS = (SCP - ARP).'/norm(SCP - ARP);
     left = cross(ARP/norm(ARP),ARP_v/norm(ARP_v));
     look = sign(left * uLOS);
