@@ -1,5 +1,18 @@
-function Vectors = Plot3DImageGeometry(meta,PlotOptions,plot_h)
+function Vectors = Plot3DImageGeometry(meta,PlotOptions,plot_h,handles)
 %PLOTIMAGEGEOMETRY Plots Image Geometry based on meta and Plot Options
+
+%get altitude, if under 50km then consider it an airplane
+lla = ecf_to_geodetic(meta.SCPCOA.ARPPos.X,meta.SCPCOA.ARPPos.Y,meta.SCPCOA.ARPPos.Z);
+Altitude = lla(3);
+if Altitude < 50000
+    AirplaneFlag = 1;
+    %disabel SSP check box and set to zero, this is not relavant for
+    %airborne SAR and will screw up the bounds
+    set(handles.SSPCheck,'Value',0);
+    set(handles.SSPCheck,'Enable','off');
+else
+    AirplaneFlag = 0;
+end
 
 CamTarget = get(plot_h,'CameraTarget');
 if CamTarget(1) == 0.5 && CamTarget(2) == 0.5 && CamTarget(3) == 0.5
@@ -201,12 +214,14 @@ MinY = min([MinY [ARP(2)-V_(2)*VLength/8 ARP(2)+V_(2)*VLength]]);
 MaxY = max([MaxY [ARP(2)-V_(2)*VLength/8 ARP(2)+V_(2)*VLength]]);
 MinZ = min([MinZ [ARP(3)-V_(3)*VLength/8 ARP(3)+V_(3)*VLength]]);
 MaxZ = max([MaxZ [ARP(3)-V_(3)*VLength/8 ARP(3)+V_(3)*VLength]]);
-MinX = min([MinX EarthArc(:,1)']);
-MaxX = max([MaxX EarthArc(:,1)']);
-MinY = min([MinY EarthArc(:,2)']);
-MaxY = max([MaxY EarthArc(:,2)']);
-MinZ = min([MinZ EarthArc(:,3)']);
-MaxZ = max([MaxZ EarthArc(:,3)']);
+if AirplaneFlag==0
+    MinX = min([MinX EarthArc(:,1)']);
+    MaxX = max([MaxX EarthArc(:,1)']);
+    MinY = min([MinY EarthArc(:,2)']);
+    MaxY = max([MaxY EarthArc(:,2)']);
+    MinZ = min([MinZ EarthArc(:,3)']);
+    MaxZ = max([MaxZ EarthArc(:,3)']);
+end
 MinX = min([MinX SP(:,1)']);
 MaxX = max([MaxX SP(:,1)']);
 MinY = min([MinY SP(:,2)']);
@@ -506,7 +521,7 @@ if PlotOptions.GroundBorderCheck
     
 end
 
-if PlotOptions.SSPCheck
+if PlotOptions.SSPCheck && AirplaneFlag == 0
     plot3(plot_h,[ARP(1) SSPTrue(1)],[ARP(2) SSPTrue(2)],[ARP(3) SSPTrue(3)],'-k','LineWidth',1.5);
     plot3(plot_h,EarthArc(:,1),EarthArc(:,2),EarthArc(:,3),'-k','LineWidth',1.5);       
     plot3(SSP(1),SSP(2),SSP(3),'Marker','o','MarkerFaceColor','k','MarkerEdgeColor','k','MarkerSize',7)    

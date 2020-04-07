@@ -411,7 +411,7 @@ try
 catch
 end
 
-handles.Vectors = Plot3DImageGeometry(handles.meta,PlotOptions,handles.image);
+handles.Vectors = Plot3DImageGeometry(handles.meta,PlotOptions,handles.image,handles);
 
 % Update handles structure
 guidata(handles.figure1, handles);
