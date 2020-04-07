@@ -277,6 +277,10 @@ set(h,'YLim',[0 210]);
 set(h,'XTick',[]);
 set(h,'YTick',[]);
 
+%get axis aspect ratio, we will use this to draw the vectors at the proper
+%angle
+AspectRatio = h.Position(3)/h.Position(4);
+
 % Text annotation
 FontSize = floor(axes_pos(4)/20); %set font size based on height and width
 text_flds = {'BackgroundColor',[0 0 0],'FontSize',FontSize};
@@ -349,26 +353,54 @@ if isfield(meta,'SCPCOA')
         Layover = Layover - MultipathGround;
     end
 
-    % Arrow plot
+    % Arrow plot (0 starts x-axis (right) and goes CCW)
     ArrowCenter = [145 72];
     ArrowLength = 45;
     Arrow_flds = {'Width', 1 ,'Length', 8, 'BaseAngle', 90, 'TipAngle', 20};
 
     Layover = 90-(Layover-Azimuth);
-    arrow(ArrowCenter, [ArrowCenter(1)+ArrowLength*cosd(Layover) ArrowCenter(2)+ArrowLength*sind(Layover)], 'Color',[1 .66 0], Arrow_flds{:});
+    if AspectRatio>1 %x bigger than Y
+        XEnd = ArrowCenter(1)+(ArrowLength*cosd(Layover))/AspectRatio;
+        YEnd = ArrowCenter(2)+ArrowLength*sind(Layover);        
+    else
+        XEnd = ArrowCenter(1)+ArrowLength*cosd(Layover);
+        YEnd = ArrowCenter(2)+(ArrowLength*sind(Layover))*AspectRatio;   
+    end
+    arrow(ArrowCenter, [XEnd YEnd], 'Color',[1 .66 0], Arrow_flds{:});
 
     % Shadow is always Down in Ground Plane
     Shadow = 90-(Shadow-Azimuth);
-    arrow(ArrowCenter, [ArrowCenter(1)+ArrowLength*cosd(Shadow) ArrowCenter(2)+ArrowLength*sind(Shadow)], 'Color',[0 .65 1], Arrow_flds{:});
+    if AspectRatio>1 %x bigger than Y
+        XEnd = ArrowCenter(1)+(ArrowLength*cosd(Shadow))/AspectRatio;
+        YEnd = ArrowCenter(2)+ArrowLength*sind(Shadow);        
+    else
+        XEnd = ArrowCenter(1)+ArrowLength*cosd(Shadow);
+        YEnd = ArrowCenter(2)+(ArrowLength*sind(Shadow))*AspectRatio;   
+    end
+    arrow(ArrowCenter, [XEnd YEnd], 'Color',[0 .65 1], Arrow_flds{:});
 
     % North Arrow
     North = Azimuth+90;
-    arrow(ArrowCenter, [ArrowCenter(1)+(ArrowLength-5)*cosd(North) ArrowCenter(2)+(ArrowLength-5)*sind(North)], 'Color',[.58 .82 .31], Arrow_flds{:});
+    if AspectRatio>1 %x bigger than Y
+        XEnd = ArrowCenter(1)+(ArrowLength*cosd(North))/AspectRatio;
+        YEnd = ArrowCenter(2)+ArrowLength*sind(North);        
+    else
+        XEnd = ArrowCenter(1)+ArrowLength*cosd(North);
+        YEnd = ArrowCenter(2)+(ArrowLength*sind(North))*AspectRatio;   
+    end
+    arrow(ArrowCenter, [XEnd YEnd], 'Color',[.58 .82 .31], Arrow_flds{:});
     text(175,33,'N','BackgroundColor',[0 0 0],'FontSize',FontSize-2,'Color',[.58 .82 .31]);
 
     % Multipath
     Multipath = North-Multipath;
-    arrow(ArrowCenter, [ArrowCenter(1)+ArrowLength*cosd(Multipath) ArrowCenter(2)+ArrowLength*sind(Multipath)], 'Color',[1 0 0], Arrow_flds{:});
+    if AspectRatio>1 %x bigger than Y
+        XEnd = ArrowCenter(1)+(ArrowLength*cosd(Multipath))/AspectRatio;
+        YEnd = ArrowCenter(2)+ArrowLength*sind(Multipath);        
+    else
+        XEnd = ArrowCenter(1)+ArrowLength*cosd(Multipath);
+        YEnd = ArrowCenter(2)+(ArrowLength*sind(Multipath))*AspectRatio;   
+    end
+    arrow(ArrowCenter, [XEnd YEnd], 'Color',[1 0 0], Arrow_flds{:});
 end
 
 set(h,'Units','normalized');

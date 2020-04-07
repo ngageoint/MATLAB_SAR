@@ -55,6 +55,12 @@ h_recursive = uicontrol('Parent',h_figure,...
     'Position',[.7 .0 .2 BUTTON_HEIGHT],...
     'BackgroundColor',get(h_figure,'Color'));
 
+
+%add resize callback for figure, this will allow us to redraw the arrows to
+%preserve the proper angles
+f = gcf;
+set(f,'ResizeFcn',@ResizeFunction);
+
 % Determine if data filename was passed as argument
 p = inputParser; % Extract parameter-value pairs
 p.KeepUnmatched=true;
@@ -64,8 +70,23 @@ p.parse(varargin{:});
 if length(p.Results.filename) > 0
     LoadImage(p.Results.filename);
 end
+
+global meta;
    
 %% Callbacks
+
+    % --- Executes when figure1 is resized.
+    function ResizeFunction(hObject, eventdata, handles)
+    % hObject    handle to figure1 (see GCBO)
+    % eventdata  reserved - to be defined in a future version of MATLAB
+    % handles    structure with handles and user data (see GUIDATA)
+    
+    %redraw icon when figure size changes
+    GroundProject = get(h_groundproject,'Value');
+    MetaIcon(meta,'handle',h_metaicon,'GroundProject',GroundProject);
+    
+    end
+    
     % --- Executes on button press in LoadFile.
     function LoadFile_Callback(hObject, eventdata)
         % hObject    handle to LoadFile (see GCBO)
@@ -88,7 +109,7 @@ end
         end
         
         filename = strcat(path,fname);
-        
+               
         setpref('matlab_sar_toolbox','last_used_directory',path); %store path
         
         LoadImage(filename);
@@ -98,7 +119,9 @@ end
     function LoadImage(filename)
         % determine if input file is complex image or phase history data
         GroundProject = get(h_groundproject,'Value');
-        MetaIcon(filename,'handle',h_metaicon,'GroundProject',GroundProject);
+        reader_obj = open_reader(filename);
+        meta = reader_obj.get_meta();
+        MetaIcon(meta,'handle',h_metaicon,'GroundProject',GroundProject);
         set(h_save_button,'Enable','on');
     end
 
