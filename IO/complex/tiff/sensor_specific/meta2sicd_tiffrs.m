@@ -63,9 +63,11 @@ if length(files_found)==1
                                       '[' num2str(i) ']'...
                                       '/*[local-name()=''ipdf'']/@pole'],...
                                       rsxml_meta));
+                M = struct('H','H','V','V','C','RHC');
+                pol = {M.(pol(1)) M.(pol(2))};
             end
             meta.ImageFormation.RcvChanProc.ChanIndex = i;
-            meta.ImageFormation.TxRcvPolarizationProc=[pol(1) ':' pol(2)];
+            meta.ImageFormation.TxRcvPolarizationProc=[pol{1} ':' pol{2}];
             break;
         end
     end
