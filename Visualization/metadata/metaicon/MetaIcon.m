@@ -172,27 +172,29 @@ end
 
 if isfield(meta,'ImageFormation') && isfield(meta.ImageFormation,'TxRcvPolarizationProc')
     Pol = meta.ImageFormation.TxRcvPolarizationProc; % Probably string, but could be cell array
+    if ~iscell(Pol), Pol = {Pol}; end
 elseif isfield(meta,'RadarCollection') && isfield(meta.RadarCollection,'RcvChannels') && ...
        isfield(meta.RadarCollection.RcvChannels,'ChanParameters') && ...
        isfield(meta.RadarCollection.RcvChannels.ChanParameters,'TxRcvPolarization')
     Pol = {meta.RadarCollection.RcvChannels.ChanParameters.TxRcvPolarization}; % RcvChannels is struct array
 end
 if exist('Pol','var')
-    if iscell(Pol)
-        Pol = cellfun(@(x) x(1:2:3), Pol, 'UniformOutput', false);
-        if numel(Pol)==4
-            Pol = 'QUAD';
-        elseif numel(Pol)==2 && Pol{1}(1) == 'H' && Pol{2}(1) == 'H'
-            Pol = 'HD';
-        elseif numel(Pol)==2 && Pol{1}(1) == 'V' && Pol{2}(1) == 'V'
-            Pol = 'VD';
-        elseif numel(Pol)==1
-            Pol = Pol{1};
-        else % Don't know what to do.  Could be HH/VV or other unusual pol
-            clear Pol;
+    Pol_cell = cellfun(@(x) split(x,':'), Pol, 'UniformOutput', false);
+    delim = '';
+    if numel(Pol_cell)==4
+        Pol_str = 'QUAD';
+    elseif numel(Pol_cell)==2 && isequal(Pol_cell{1}{1}, Pol_cell{2}{1})
+        if ~ismember(Pol_cell{1}{1},{'V','H'})
+            delim = ':';
         end
-    else
-        Pol = Pol(1:2:3);
+        Pol_str = [Pol_cell{1}{1} delim 'D'];
+    elseif numel(Pol_cell)==1
+        if any(~ismember(Pol_cell{1},{'V','H'}))
+            delim = ':';
+        end
+        Pol_str = [Pol_cell{1}{1} delim Pol_cell{1}{2}];
+    else % Don't know what to do.  Could be HH/VV or other unusual pol
+        Pol_str = join(Pol,',');
     end
 end
 
@@ -281,6 +283,13 @@ set(h,'YTick',[]);
 %angle
 AspectRatio = h.Position(3)/h.Position(4);
 
+%get pixel spacing aspect ratio
+if isfield(meta,'Grid') && all(isfield(meta.Grid,{'Col','Row'})) && ...
+         isfield(meta.Grid.Col,'SS') && isfield(meta.Grid.Row,'SS')
+    PixelAspectRatio = meta.Grid.Col.SS/meta.Grid.Row.SS;
+    AspectRatio = AspectRatio.*PixelAspectRatio;
+end
+
 % Text annotation
 FontSize = floor(axes_pos(4)/20); %set font size based on height and width
 text_flds = {'BackgroundColor',[0 0 0],'FontSize',FontSize};
@@ -329,8 +338,8 @@ if ~isfield(meta,'CollectionInfo') || ~isfield(meta.CollectionInfo,'RadarMode') 
         cdp_line = [cdp_line meta.CollectionInfo.RadarMode.ModeID];
     end
 end
-if exist('Pol','var')
-    cdp_line = [cdp_line ['POL: ' Pol]];
+if exist('Pol_str','var')
+    cdp_line = [cdp_line ['POL: ' Pol_str]];
 end
 text(8,127,strjoin(cdp_line, ' / '),white_flds{:});
 if isfield(meta,'SCPCOA')
@@ -355,14 +364,20 @@ if isfield(meta,'SCPCOA')
 
     % Arrow plot (0 starts x-axis (right) and goes CCW)
     ArrowCenter = [145 72];
-    ArrowLength = 45;
+    ArrowLengthOld = 45;
     Arrow_flds = {'Width', 1 ,'Length', 8, 'BaseAngle', 90, 'TipAngle', 20};
 
     Layover = 90-(Layover-Azimuth);
     if AspectRatio>1 %x bigger than Y
+        %maintain the same length
+        NewLength = norm([ArrowLengthOld*cosd(Layover)/AspectRatio ArrowLengthOld*sind(Layover)]);
+        ArrowLength = ArrowLengthOld*(ArrowLengthOld/NewLength);
         XEnd = ArrowCenter(1)+(ArrowLength*cosd(Layover))/AspectRatio;
         YEnd = ArrowCenter(2)+ArrowLength*sind(Layover);        
     else
+        %maintain the same length
+        NewLength = norm([ArrowLengthOld*cosd(Layover) ArrowLengthOld*sind(Layover)*AspectRatio]);
+        ArrowLength = ArrowLengthOld*(ArrowLengthOld/NewLength);
         XEnd = ArrowCenter(1)+ArrowLength*cosd(Layover);
         YEnd = ArrowCenter(2)+(ArrowLength*sind(Layover))*AspectRatio;   
     end
@@ -371,9 +386,15 @@ if isfield(meta,'SCPCOA')
     % Shadow is always Down in Ground Plane
     Shadow = 90-(Shadow-Azimuth);
     if AspectRatio>1 %x bigger than Y
+        %maintain the same length
+        NewLength = norm([ArrowLengthOld*cosd(Shadow)/AspectRatio ArrowLengthOld*sind(Shadow)]);
+        ArrowLength = ArrowLengthOld*(ArrowLengthOld/NewLength);
         XEnd = ArrowCenter(1)+(ArrowLength*cosd(Shadow))/AspectRatio;
         YEnd = ArrowCenter(2)+ArrowLength*sind(Shadow);        
     else
+        %maintain the same length
+        NewLength = norm([ArrowLengthOld*cosd(Shadow) ArrowLengthOld*sind(Shadow)*AspectRatio]);
+        ArrowLength = ArrowLengthOld*(ArrowLengthOld/NewLength);
         XEnd = ArrowCenter(1)+ArrowLength*cosd(Shadow);
         YEnd = ArrowCenter(2)+(ArrowLength*sind(Shadow))*AspectRatio;   
     end
@@ -382,9 +403,15 @@ if isfield(meta,'SCPCOA')
     % North Arrow
     North = Azimuth+90;
     if AspectRatio>1 %x bigger than Y
+        %maintain the same length
+        NewLength = norm([ArrowLengthOld*cosd(North)/AspectRatio ArrowLengthOld*sind(North)]);
+        ArrowLength = ArrowLengthOld*(ArrowLengthOld/NewLength);
         XEnd = ArrowCenter(1)+(ArrowLength*cosd(North))/AspectRatio;
         YEnd = ArrowCenter(2)+ArrowLength*sind(North);        
     else
+        %maintain the same length
+        NewLength = norm([ArrowLengthOld*cosd(North) ArrowLengthOld*sind(North)*AspectRatio]);
+        ArrowLength = ArrowLengthOld*(ArrowLengthOld/NewLength);
         XEnd = ArrowCenter(1)+ArrowLength*cosd(North);
         YEnd = ArrowCenter(2)+(ArrowLength*sind(North))*AspectRatio;   
     end
@@ -394,9 +421,15 @@ if isfield(meta,'SCPCOA')
     % Multipath
     Multipath = North-Multipath;
     if AspectRatio>1 %x bigger than Y
+        %maintain the same length
+        NewLength = norm([ArrowLengthOld*cosd(Multipath)/AspectRatio ArrowLengthOld*sind(Multipath)]);
+        ArrowLength = ArrowLengthOld*(ArrowLengthOld/NewLength);
         XEnd = ArrowCenter(1)+(ArrowLength*cosd(Multipath))/AspectRatio;
         YEnd = ArrowCenter(2)+ArrowLength*sind(Multipath);        
     else
+        %maintain the same length
+        NewLength = norm([ArrowLengthOld*cosd(Multipath) ArrowLengthOld*sind(Multipath)*AspectRatio]);
+        ArrowLength = ArrowLengthOld*(ArrowLengthOld/NewLength);
         XEnd = ArrowCenter(1)+ArrowLength*cosd(Multipath);
         YEnd = ArrowCenter(2)+(ArrowLength*sind(Multipath))*AspectRatio;   
     end
