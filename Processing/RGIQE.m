@@ -1,5 +1,6 @@
 function [image_information_metric, rniirs, diagnostic] = RGIQE(filename, varargin)
 % RGIQE Radar generalized image quality equation
+%    [image_information_metric, rniirs] = RGIQE(bandwidth, nesz_db, graze_degrees)
 %    [image_information_metric, rniirs] = RGIQE(filename, 'PropertyName', PropertyValue, ...)
 %
 % An implementation of a generalized image quality equation to provide a
@@ -7,7 +8,7 @@ function [image_information_metric, rniirs, diagnostic] = RGIQE(filename, vararg
 %
 % RNIIRS (Radar National Imagery Interpretation Rating Scale) is an image
 % quality scale from 1 to 9.  This "quality" refers to local image fidelity
-% and a users ability to perform certain detection and recognition task
+% and a users ability to perform certain detection and recognition tasks
 % with an image.  The "quality" that RNIIRS attempts to capture does NOT
 % refer to image size, geopositioning accuracy, radiometric accuracy, or
 % any other host of characterists that may improve an image's utility.
@@ -25,13 +26,24 @@ function [image_information_metric, rniirs, diagnostic] = RGIQE(filename, vararg
 % ratings.  Both the information theory metric and the RNIIRS prediction
 % are computed in this function.
 %
+%    [image_information_metric, rniirs] = RGIQE(bandwidth, nesz_db, graze_degrees)
+% INPUTS:
+%
+%    bandwidth               Transmitted (and processed) bandwidth in Hz.
+%    nesz_db                 Noise equivalent sigma-0 in dB.  Should
+%                               capture all noise, including multiplicative
+%                               sources.
+%    graze_degrees           Grazing angle in degrees.
+%
+%
+%    [image_information_metric, rniirs] = RGIQE(filename, 'PropertyName', PropertyValue, ...)
 % INPUTS:
 %
 %    filename                Must either be a complex image in a format
-%                            recognized by the MATLAB SAR Toolbox or an XML
-%                            file with SICD-formatted XML.  If empty or not
-%                            passed, the user will be prompted to select a
-%                            file with a dialog box.
+%                               recognized by the MATLAB SAR Toolbox or an
+%                               XML file with SICD-formatted XML.  If empty
+%                               or not passed, the user will be prompted to
+%                               select a file with a dialog box.
 %
 %    Property name           Description
 %    multi_noise             Multiplicative noise.  This value is equal to:
@@ -89,6 +101,20 @@ function [image_information_metric, rniirs, diagnostic] = RGIQE(filename, vararg
 % Of the lines in this file, >95% is file and input parameter parsing and
 % documention, and <5% actually computing the image quality metrics...
 
+%% Bandwidth formulation
+% Assumes azimuth bandwidth to match range in ground plane
+% NESZ provided should capture all noise, including multiplicative sources
+if nargin == 3 && isnumeric(filename) && isnumeric(varargin{1}) && isnumeric(varargin{2})
+    bandwidth = filename;  % Hz
+    nesz = varargin{1};  % in dB
+    graze = varargin{2};  % in degrees
+    image_information_metric = (((bandwidth*2/SPEED_OF_LIGHT).*cosd(graze)).^2).*log2(1+1/(10^(nesz/10)));
+    rniirs = estimate_rniirs(image_information_metric);
+    diagnostic = struct();  % No diagnostics for this version
+    return;
+end
+
+%% SICD/SLC version.
 %% Open input file
 if ((nargin<1)||isempty(filename)) % If no filename was give, use dialog box to ask for one
     % Recall last interactively selected path used
@@ -332,37 +358,7 @@ for i = 1:numel(meta)
 
     %% Map bits/m^2 into RNIIRS
     if ismember('signal_sigma_override', p.UsingDefaults)
-        % The coefficients here were derived by fitting hundreds of SAR
-        % datasets with varying parameters to analysts ratings.  This
-        % author prefers the information metric but also provides this as
-        % well for comparison to this legacy scale.
-        coeffs = [.3960 3.7555];  % Probably more digits of precision than we really have
-        rniirs(i) = polyval(coeffs,log2(image_information_metric(i)));
-        % For completeness, we handle the very low RNIIRS case where the
-        % logarithmic equation would have been negative.  Negative is not
-        % allowed in the RNIIRS scale. We compute where a line tangent to
-        % the bits/m^2-to-RNIIRS function intersects with the origin.  We
-        % will use this tangent line as the mapping for very low RNIIRS,
-        % since it approaches zero as information approaches zero and
-        % remains non-negative. This way the entire mapping function
-        % between bits/m^2 and RNIIRS is continuous and has a continuous
-        % derivative.  The function will be logarithmic with respect to the
-        % information metric above this point (presumably nearly all data
-        % will fit in here) and linear with respect to the metric below
-        % this point (extremely low RNIIRS).  Note that since NGA has no
-        % precedent or analysts ratings for RNIIRS<1, we are really free to
-        % define this however we want.
-        linlog_transition = exp(1 - coeffs(2)*log(2)/coeffs(1));
-        % Derivative of linear portion (as well as intersection with log portion)
-        d_rniirs = coeffs(1)/(log(2)*linlog_transition);
-        % This is what the two lines would look line at very low RNIIRS:
-        % x=linspace(0,.02,1000);
-        % figure; plot(x, polyval(coeffs,log2(x)), x, x*d_rniirs);
-        % That was a lot of explanation for a case that will likely rarely
-        % be used, wasn't it?
-        if image_information_metric(i)<linlog_transition
-            rniirs(i) = d_rniirs * image_information_metric(i);
-        end
+        rniirs(i) = estimate_rniirs(image_information_metric(i));
     else  % If assumed signal is not default, this RNIIRS mapping is not valid
         rniirs(i) = NaN;
     end
@@ -373,6 +369,40 @@ try
     end
 end
 
+end
+
+function rniirs = estimate_rniirs(image_information_metric)
+    % The coefficients here were derived by fitting hundreds of SAR
+    % datasets with varying parameters to analysts ratings.  This
+    % author prefers the information metric but also provides this as
+    % well for comparison to this legacy scale.
+    coeffs = [.3960 3.7555];  % Probably more digits of precision than we really have
+    rniirs = polyval(coeffs,log2(image_information_metric));
+    % For completeness, we handle the very low RNIIRS case where the
+    % logarithmic equation would have been negative.  Negative is not
+    % allowed in the RNIIRS scale. We compute where a line tangent to
+    % the bits/m^2-to-RNIIRS function intersects with the origin.  We
+    % will use this tangent line as the mapping for very low RNIIRS,
+    % since it approaches zero as information approaches zero and
+    % remains non-negative. This way the entire mapping function
+    % between bits/m^2 and RNIIRS is continuous and has a continuous
+    % derivative.  The function will be logarithmic with respect to the
+    % information metric above this point (presumably nearly all data
+    % will fit in here) and linear with respect to the metric below
+    % this point (extremely low RNIIRS).  Note that since NGA has no
+    % precedent or analysts ratings for RNIIRS<1, we are really free to
+    % define this however we want.
+    linlog_transition = exp(1 - coeffs(2)*log(2)/coeffs(1));
+    % Derivative of linear portion (as well as intersection with log portion)
+    d_rniirs = coeffs(1)/(log(2)*linlog_transition);
+    % This is what the two lines would look line at very low RNIIRS:
+    % x=linspace(0,.02,1000);
+    % figure; plot(x, polyval(coeffs,log2(x)), x, x*d_rniirs);
+    % That was a lot of explanation for a case that will likely rarely
+    % be used, wasn't it?
+    if image_information_metric<linlog_transition
+        rniirs = d_rniirs * image_information_metric;
+    end
 end
 
 function out = project_ground(point, gpn)
