@@ -5,13 +5,13 @@ function varargout = PolTool(varargin)
 % Quad-Pol this allows us to synthesize any transmit and recieve
 % polarimetric configuration.  Dual Pol allows us to only synthesize one 
 % side (typically Rx). 
-% Polarization is defined by angle and ellipticity.  Angle is defined from
-% 0-360 (where 0 is H).  Ellipticity is defined from -45 to 45.  Positive
-% ellipticity indicated CW circular rotation.
+% Polarization is defined by angle and ellipticitycontrol.  Angle is defined from
+% 0-360 (where 0 is H).  EllipticityControl is defined from -45 to 45.  Positive
+% ellipticitycontrol indicated CW circular rotation.
 % Interactive control is performed with the mouse. Motion with the left
 % button down modifies the Tx polarization and right button down modifies
 % the Rx polarization.  Horizontal motion changes the angle (Right is
-% positive), vertical motion changes the ellipticity (Up is positive). The
+% positive), vertical motion changes the ellipticitycontrol (Up is positive). The
 % center button or double-click returns polarization to the default when
 % the file was loaded.
 %
@@ -44,12 +44,17 @@ function varargout = PolTool(varargin)
 %   1.4
 %     - Wade Schwartzkopf 20120622
 %     - Added embedded mitm_viewer and cleaned up code
+%   1.5 
+%     - Tim Cox 20200319
+%     - Updated to handle RCM (circular transmit polarization) and updated
+%       Tab control 
 %
 % //////////////////////////////////////////
 % /// CLASSIFICATION: UNCLASSIFIED       ///
 % //////////////////////////////////////////
 
-gui_Singleton = 0;
+% Begin initialization code - DO NOT EDIT
+gui_Singleton = 1;
 gui_State = struct('gui_Name',       mfilename, ...
                    'gui_Singleton',  gui_Singleton, ...
                    'gui_OpeningFcn', @PolTool_OpeningFcn, ...
@@ -82,19 +87,12 @@ handles.output = hObject;
 % Update handles structure
 guidata(hObject, handles);
 
-% Setup image display
 handles.mitm_hand = hg_mitm_viewer(handles.image);
-% Could use callbacks to update pixel/AOI selections to sync with pan/zoom
-% handles.mitm_hand.PreChangeViewFcn = @() saveShapesNativeCoords(hObject);
-% handles.mitm_hand.PostChangeViewFcn = @() restoreShapesLocalCoords(hObject);
 
-%format metaicon
 set(handles.metaicon,'XTick',[]);
 set(handles.metaicon,'YTick',[]);
 set(handles.metaicon,'Box','on');
-set(handles.metaicon,'Color',[51/255 102/255 153/255]);
-setAllowAxesZoom(zoom(handles.figure1),handles.metaicon,false);
-setAllowAxesPan(pan(handles.figure1),handles.metaicon,false);
+set(handles.metaicon,'Color',[0/255 0/255 0/255]);
 
 %format TxPlot
 set(handles.TxPlot,'XTick',[]);
@@ -110,98 +108,64 @@ set(handles.RxPlot,'Box','on');
 setAllowAxesZoom(zoom(handles.figure1),handles.RxPlot,false);
 setAllowAxesPan(pan(handles.figure1),handles.RxPlot,false);
 
-%set defaults
+%set up tab control
+%handles.tgroup = uitabgroup('Parent', handles.figure1,'Position', [.017 .015 .4 .30]); When other tabs are visible     
+handles.tgroup = uitabgroup('Parent', handles.figure1,'Position', [.017 .015 .72 .30]); %when other tabs are hidden
+handles.tab1 = uitab('Parent', handles.tgroup, 'Title', 'Combination');
+handles.tab2 = uitab('Parent', handles.tgroup, 'Title', 'Manual Control');
+handles.tab3 = uitab('Parent', handles.tgroup, 'Title', 'Save Image/Movie');
+handles.tab4 = uitab('Parent', handles.tgroup, 'Title', 'Analysis');
+
+%Place panels into each tab
+set(handles.P1,'Parent',handles.tab1)
+set(handles.P2,'Parent',handles.tab2)
+set(handles.P3,'Parent',handles.tab3)
+set(handles.P4,'Parent',handles.tab4)
+
+%Reposition each panel to same location as panel 1
+set(handles.P2,'position',get(handles.P1,'position'));
+set(handles.P3,'position',get(handles.P1,'position'));
+set(handles.P4,'position',get(handles.P1,'position'));
+
+%set default settings
+set(handles.AngleControl,'Value',1);
+set(handles.EllipticityControl,'Value',1);
+set(handles.FrameRate,'String',5);
+set(handles.StopMovie,'enable','off');
+handles.movieflag = 0;
+set(handles.CoAngleEllip,'enable','off');
+set(handles.CrossAngleEllip,'enable','off');
+set(handles.RxAngleEllip,'enable','off');
+set(handles.AngleRes,'String',1);
+set(handles.SaveCov,'enable','off');
+set(handles.PlotResults,'enable','off');
+
+%transmit polarization.  There are 5 possibilities: HV,H,V,RHC,LHC
+handles.TxPol = '';
+
 handles.TxAng = 0;
 handles.RxAng = 0;
 handles.TxEllip = 0;
 handles.RxEllip = 0;
-handles.TxAngleFloat = 0;
-handles.RxAngleFloat = 0;
-handles.TxEllipticityFloat = 0;
-handles.RxEllipticityFloat = 0;
-handles.Select = 'None';
+
+set(handles.TxAngleInc,'String',5);
+set(handles.TxEllipInc,'String',5);
+set(handles.RxAngleInc,'String',5);
+set(handles.RxEllipInc,'String',5);
+
 handles.InMotionFcn = 0;
-handles.SelectingRegion = 0;
-handles.aviflag = 0;
+handles.Select = 'None';
 handles.PixelSelect = 0;
+handles.SelectingRegion = 0;
 handles.PointInImage = 0;
 handles.XOffset = 0;
 handles.YOffset = 0;
 handles.aoi = [];
-set(handles.AngleControl,'Value',1);
-set(handles.EllipControl,'Value',1);
-set(handles.TxAngleInc,'String',1);
-set(handles.RxAngleInc,'String',1);
-set(handles.TxEllipInc,'String',1);
-set(handles.RxEllipInc,'String',1);
-set(handles.TxAngleMan,'String',0);
-set(handles.RxAngleMan,'String',0);
-set(handles.TxEllipMan,'String',0);
-set(handles.RxEllipMan,'String',0);
-set(handles.FrameRate,'String',5);
-set(handles.Grayscale,'Value',1);
-set(handles.AngRes,'String',5);
 
-% Update handles structure
-guidata(hObject, handles);
+set(handles.DisplayButtonGroup,'SelectionChangeFcn',@Colormap_Callback);
 
-set(handles.TxAngle,'String',handles.TxAng);
-set(handles.RxAngle,'String',handles.RxAng);
-set(handles.TxEllipticity,'String',handles.TxEllip);
-set(handles.RxEllipticity,'String',handles.RxEllip);
-
-%add radio-button callbacks for color/grayscale
-set(handles.Display,'SelectionChangeFcn',@Colormap_Callback);
-
-%enable/disable controls
-set(handles.TxHCheck,'Enable','off');
-set(handles.RxHCheck,'Enable','off');
-set(handles.TxVCheck,'Enable','off');
-set(handles.RxVCheck,'Enable','off');
-set(handles.HHButton,'Enable','off');
-set(handles.HVButton,'Enable','off');
-set(handles.VHButton,'Enable','off');
-set(handles.VVButton,'Enable','off');
-set(handles.CircCoButton,'Enable','off');
-set(handles.CircCrossButton,'Enable','off');
-set(handles.HHPlusVVButton,'Enable','off');
-set(handles.HHMinusVVButton,'Enable','off');
-set(handles.Color,'Enable','off');
-set(handles.Grayscale,'Enable','off');
-set(handles.SaveImage,'Enable','off');
-set(handles.StartMovie,'Enable','off');
-set(handles.StopMovie,'Enable','off');
-set(handles.RunDecomp,'Enable','off');
-set(handles.Generate,'Enable','off');
-set(handles.SaveDecomp,'Enable','off');
-set(handles.RedPol,'Enable','inactive');
-set(handles.GreenPol,'Enable','inactive');
-set(handles.BluePol,'Enable','inactive');
-set(handles.SetRed,'Enable','off');
-set(handles.SetGreen,'Enable','off');
-set(handles.SetBlue,'Enable','off');
-set(handles.SaveCov,'Enable','off');
-
-set(handles.SelectPixel,'Enable','off');
-set(handles.SelectAOI,'Enable','off');
-set(handles.PlotResults,'Enable','off');
-
-set(handles.TxManPanel,'Visible','off');
-set(handles.RxManPanel,'Visible','off');
-
-%plot Tx and Rx Ellipses
-PlotPolEllipse(handles.TxPlot,handles.TxAng,handles.TxEllip);
-PlotPolEllipse(handles.RxPlot,handles.RxAng,handles.RxEllip);
-
+%populate Decomp Combo box
 pathstr=fileparts(mfilename('fullpath'));
-
-% if isdeployed
-%     %Trim off PolTool from path since decomposition folder is at the same
-%     %level (not sure why)
-%     pathlength = length(pathstr);
-%     pathstr = pathstr(1:(pathlength-7));
-% end
-
 filestring1=dir(fullfile(pathstr, 'Decompositions', '*.m'));
 filestring2=dir(fullfile(pathstr, 'Decompositions', '*.decomp'));
 
@@ -210,18 +174,14 @@ for i=1:length(filestring1)
     foo = filestring1(i).name;
     filestring1(i).name = foo(1:length(filestring1(i).name)-2);
 end
-
 filestring = cat(1,filestring1,filestring2);
-
 for i=1:length(filestring)
     stringtemp{i} = filestring(i).name;
 end
-
 if isempty(filestring)
     stringtemp = 'Pauli';
 end
-
-set(handles.DecompList,'String',stringtemp);
+set(handles.DecompCombo,'String',stringtemp);
 
 p = inputParser; % Extract parameter-value pairs
 p.KeepUnmatched=true;
@@ -230,15 +190,186 @@ p.addParamValue('aoi',[]);
 p.addParamValue('segment',1);
 p.parse(varargin{:});
 
-% determine if image name was passed as calling argument
-
 if ~isempty(p.Results.filename)
     LoadImage(p.Results.filename,hObject,handles,p.Results.aoi,p.Results.segment);
 else
+    %set combinations to invisible until files are loaded
+    set(handles.Co1,'visible','off');  
+    set(handles.Co2,'visible','off');  
+    set(handles.Cross1,'visible','off');  
+    set(handles.Cross2,'visible','off'); 
+    set(handles.CircCo,'visible','off');  
+    set(handles.CircCross,'visible','off');  
+    set(handles.PauliCo,'visible','off');  
+    set(handles.PauliCross,'visible','off'); 
+    
     % Update handles structure
     guidata(hObject, handles);
 end
 
+% UIWAIT makes PolTool wait for user response (see UIRESUME)
+% uiwait(handles.figure1);
+
+function Colormap_Callback(hObject, eventdata)
+
+handles = guidata(hObject);
+if get(handles.Color,'Value')
+    colormap(handles.mitm_hand.AxesHandle,jet);
+else
+    colormap(handles.mitm_hand.AxesHandle,gray);
+end
+
+function LoadImage(filenames,hObject,handles,aoi,segment)
+
+% Input arguments
+if ischar(filenames) % Input can be single string or cell array of strings
+    filenames = {filenames}; % Just treat both types as cell array
+end
+
+% Open file(s)
+handles.mitm_hand.DataTransformFcn = [];
+handles.mitm_hand.close();
+if isempty(aoi) % Default is to show entire image
+    handles.mitm_hand.openFile(filenames);
+else % AOI was passed in
+    handles.mitm_hand.openFile(filenames, true);
+    pixels_available = floor(getpixelposition(handles.mitm_hand.AxesHandle))-1;
+    handles.mitm_hand.setView('CenterPos',aoi(1:2)+(aoi(3:4)/2),...
+        'Zoom',max(ceil(aoi(3:4)./pixels_available(3:4))),'Frame',segment(1));
+end
+meta = handles.mitm_hand.Metadata{handles.mitm_hand.Frame};
+MetaIcon(meta,'handle',handles.metaicon);
+
+%determine transmit polarization
+pols = cellfun(@(x) split(x,':'), meta.ImageFormation.TxRcvPolarizationProc, 'UniformOutput', false);
+TxPol = unique(cellfun(@(x) x{1},pols,'UniformOutput',false));
+handles.TxPol = [TxPol{:}];
+
+%draw and label controls based on TxPol (all will have the same Rx Pol)
+if strcmp(handles.TxPol,'HV') || strcmp(handles.TxPol,'VH') %#ok<*BDSCA> %linear Quad
+    set(handles.Co1,'String','HH');
+    set(handles.Co2,'String','VV');
+    set(handles.Cross1,'String','HV');
+    set(handles.Cross2,'String','VH');
+    set(handles.TxAngle,'String',0);
+    set(handles.RxAngle,'String',0);    
+    set(handles.TxEllipticity,'String',0);
+    set(handles.RxEllipticity,'String',0); 
+    set(handles.TxAngleMan,'String',0);
+    set(handles.RxAngleMan,'String',0);    
+    set(handles.TxEllipMan,'String',0);
+    set(handles.RxEllipMan,'String',0); 
+    set(handles.Co1,'Visible','on');
+    set(handles.Cross1,'Visible','on');
+    set(handles.Co2,'Visible','on');
+    set(handles.Cross2,'Visible','on');
+    set(handles.CircCo,'Visible','on');
+    set(handles.CircCross,'Visible','on');
+    set(handles.PauliCo,'Visible','on');
+    set(handles.PauliCross,'Visible','on');
+    set(handles.LockPanel,'Visible','on');
+    set(handles.TxPolPanel,'Visible','on');
+    set(handles.CoAngleEllip,'enable','on');
+    set(handles.CrossAngleEllip,'enable','on');
+    set(handles.RxAngleEllip,'enable','on');
+elseif strcmp(handles.TxPol,'H') %HD
+    set(handles.Co1,'String','HH');    
+    set(handles.Cross1,'String','HV'); 
+    set(handles.Co1,'Visible','on');
+    set(handles.Cross1,'Visible','on');
+    set(handles.TxAngle,'String',0);
+    set(handles.RxAngle,'String',0);    
+    set(handles.TxEllipticity,'String',0);
+    set(handles.RxEllipticity,'String',0); 
+    set(handles.Co2,'Visible','off');
+    set(handles.Cross2,'Visible','off');
+elseif strcmp(handles.TxPol,'V') %VD
+    set(handles.Co1,'String','VV');    
+    set(handles.Cross1,'String','VH');   
+    set(handles.Co1,'Visible','on');
+    set(handles.Cross1,'Visible','on');
+    set(handles.TxAngle,'String',90);
+    set(handles.RxAngle,'String',0);    
+    set(handles.TxEllipticity,'String',0);
+    set(handles.RxEllipticity,'String',0);  
+    handles.TxAng = 90;
+    set(handles.Co2,'Visible','off');
+    set(handles.Cross2,'Visible','off');
+elseif strcmp(handles.TxPol,'RHC') %RHC
+    set(handles.Co1,'String','RHC:RHC');    
+    set(handles.Cross1,'String','RHC:LHC'); 
+    set(handles.Co2,'String','RHC:H');    
+    set(handles.Cross2,'String','RHC:V');
+    set(handles.Co1,'Visible','on');
+    set(handles.Cross1,'Visible','on');
+    set(handles.Co2,'Visible','on');
+    set(handles.Cross2,'Visible','on');
+    set(handles.TxAngle,'String',0);
+    set(handles.RxAngle,'String',0);    
+    set(handles.TxEllipticity,'String',45);
+    set(handles.RxEllipticity,'String',45);     
+elseif strcmp(handles.TxPol,'LHC') %LHC
+    set(handles.Co1,'String','LHC:LHC');    
+    set(handles.Cross1,'String','LHC:RHC');
+    set(handles.Co2,'String','LHC:H');    
+    set(handles.Cross2,'String','LHC:V');
+    set(handles.Co1,'Visible','on');
+    set(handles.Cross1,'Visible','on');
+    set(handles.Co2,'Visible','on');
+    set(handles.Cross2,'Visible','on');
+    set(handles.TxAngle,'String',0);
+    set(handles.RxAngle,'String',0);    
+    set(handles.TxEllipticity,'String',-45);
+    set(handles.RxEllipticity,'String',-45);     
+end
+if ~strcmp(handles.TxPol,'HV') && ~strcmp(handles.TxPol,'VH')
+    set(handles.CircCo,'Visible','off');
+    set(handles.CircCross,'Visible','off');
+    set(handles.PauliCo,'Visible','off');
+    set(handles.PauliCross,'Visible','off');
+    set(handles.LockPanel,'Visible','off');
+    set(handles.TxPolPanel,'Visible','off');
+    set(handles.CoAngleEllip,'enable','off');
+    set(handles.CrossAngleEllip,'enable','off');
+    set(handles.RxAngleEllip,'enable','on');
+    set(handles.RxAngleEllip,'value',1);
+end
+
+PlotPolEllipse(handles.TxPlot,1,handles);
+PlotPolEllipse(handles.RxPlot,0,handles);
+
+handles = UpdateImage(handles);
+
+% Update handles structure
+guidata(hObject, handles);
+
+function handles = UpdateImage(handles)
+
+TxAngle = str2double(get(handles.TxAngle,'String'));
+TxEllipticity = str2double(get(handles.TxEllipticity,'String'));
+RxAngle = str2double(get(handles.RxAngle,'String'));
+RxEllipticity = str2double(get(handles.RxEllipticity,'String'));
+
+if strcmp(handles.TxPol,'HV') || strcmp(handles.TxPol,'VH')
+    [coefs(1,1,1),coefs(1,1,2),coefs(1,1,3),coefs(1,1,4)] = ...
+    ComputePolCoeff(TxAngle,RxAngle,TxEllipticity,RxEllipticity);
+else
+    [coefs(1,1,1),coefs(1,1,2)] = ...
+    ComputePolCoeff(TxAngle,RxAngle,TxEllipticity,RxEllipticity);
+end
+
+% Apply coefficients
+handles.mitm_hand.DataTransformFcn = @(x) sum(bsxfun(@times,x,coefs),3);
+
+if (handles.movieflag == 1)
+    %record frame settings
+    temp.TxAngle = str2double(get(handles.TxAngle,'String'));
+    temp.RxAngle = str2double(get(handles.RxAngle,'String'));
+    temp.TxEllip = str2double(get(handles.TxEllipticity,'String'));
+    temp.RxEllip = str2double(get(handles.RxEllipticity,'String'));
+    temp.Color = get(handles.Color,'Value');
+    handles.movieparams = horzcat(handles.movieparams,temp);   
+end
 
 % --- Outputs from this function are returned to the command line.
 function varargout = PolTool_OutputFcn(hObject, eventdata, handles) 
@@ -249,6 +380,7 @@ function varargout = PolTool_OutputFcn(hObject, eventdata, handles)
 
 % Get default command line output from handles structure
 varargout{1} = handles.output;
+
 
 
 function TxAngle_Callback(hObject, eventdata, handles)
@@ -273,6 +405,7 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
 end
 
 
+
 function TxEllipticity_Callback(hObject, eventdata, handles)
 % hObject    handle to TxEllipticity (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -293,6 +426,7 @@ function TxEllipticity_CreateFcn(hObject, eventdata, handles)
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
 end
+
 
 
 function RxAngle_Callback(hObject, eventdata, handles)
@@ -317,6 +451,7 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
 end
 
 
+
 function RxEllipticity_Callback(hObject, eventdata, handles)
 % hObject    handle to RxEllipticity (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -339,212 +474,360 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
 end
 
 
-% --- Executes on mouse motion over figure - except title and menu.
-function figure1_WindowButtonMotionFcn(hObject, eventdata, handles)
-% hObject    handle to figure1 (see GCBO)
+% --- Executes on button press in AngleControl.
+function AngleControl_Callback(hObject, eventdata, handles)
+% hObject    handle to AngleControl (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-if (isfield(handles,'Select')&&strcmp(handles.Select,'None'))
-    return;
+% Hint: get(hObject,'Value') returns toggle state of AngleControl
+
+
+% --- Executes on button press in EllipticityControl.
+function EllipticityControl_Callback(hObject, eventdata, handles)
+% hObject    handle to EllipticityControl (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of EllipticityControl
+
+
+% --- Executes on button press in Co1.
+function Co1_Callback(hObject, eventdata, handles)
+% hObject    handle to Co1 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+if strcmp(handles.TxPol,'HV') || strcmp(handles.TxPol,'VH')%#ok<*BDSCA> %linear Quad
+    set(handles.TxAngle,'String',0);
+    set(handles.RxAngle,'String',0);    
+    set(handles.TxEllipticity,'String',0);
+    set(handles.RxEllipticity,'String',0);  
+    set(handles.TxAngleMan,'String',0);
+    set(handles.RxAngleMan,'String',0);    
+    set(handles.TxEllipMan,'String',0);
+    set(handles.RxEllipMan,'String',0);  
+elseif strcmp(handles.TxPol,'H') %HD   
+    set(handles.TxAngle,'String',0);
+    set(handles.RxAngle,'String',0);    
+    set(handles.TxEllipticity,'String',0);
+    set(handles.RxEllipticity,'String',0);  
+    set(handles.TxAngleMan,'String',0);
+    set(handles.RxAngleMan,'String',0);    
+    set(handles.TxEllipMan,'String',0);
+    set(handles.RxEllipMan,'String',0); 
+elseif strcmp(handles.TxPol,'V') %VD
+     set(handles.TxAngle,'String',90);
+    set(handles.RxAngle,'String',90);    
+    set(handles.TxEllipticity,'String',0);
+    set(handles.RxEllipticity,'String',0);
+    set(handles.TxAngleMan,'String',90);
+    set(handles.RxAngleMan,'String',90);    
+    set(handles.TxEllipMan,'String',0);
+    set(handles.RxEllipMan,'String',0); 
+    handles.TxAng = 90;
+elseif strcmp(handles.TxPol,'RHC') %RHC
+    set(handles.TxAngle,'String',0);
+    set(handles.RxAngle,'String',0);    
+    set(handles.TxEllipticity,'String',45);
+    set(handles.RxEllipticity,'String',45);  
+    set(handles.TxAngleMan,'String',0);
+    set(handles.RxAngleMan,'String',0);    
+    set(handles.TxEllipMan,'String',45);
+    set(handles.RxEllipMan,'String',45); 
+elseif strcmp(handles.TxPol,'LHC') %LHC
+    set(handles.TxAngle,'String',0);
+    set(handles.RxAngle,'String',0);    
+    set(handles.TxEllipticity,'String',-45);
+    set(handles.RxEllipticity,'String',-45);    
+    set(handles.TxAngleMan,'String',0);
+    set(handles.RxAngleMan,'String',0);    
+    set(handles.TxEllipMan,'String',-45);
+    set(handles.RxEllipMan,'String',-45); 
 end
 
-if (~isfield(handles,'InMotionFcn') || handles.InMotionFcn == 1 || ...
-        isempty(handles.mitm_hand.Metadata) || ...
-        handles.SelectingRegion == 1 || handles.PixelSelect == 1)
-    return;
-end
+PlotPolEllipse(handles.TxPlot,1,handles);
+PlotPolEllipse(handles.RxPlot,0,handles);
 
-VVal = get(handles.TxVCheck,'Value');
-HVal = get(handles.TxHCheck,'Value');
-if (strcmp(handles.Select,'Tx') && (VVal == 0 || HVal == 0))
-    return;
-end
-
-handles.InMotionFcn = 1;
-% Update handles structure
-guidata(hObject, handles);
-
-AngleControl = get(handles.AngleControl,'Value');
-EllipControl = get(handles.EllipControl,'Value');
-
-AngleLock = get(handles.AngleLock,'Value');
-EllipLock = get(handles.EllipLock,'Value');
-
-%Transmit
-TxAng = str2double(get(handles.TxAngle,'String')); 
-TxEllip = str2double(get(handles.TxEllipticity,'String')); 
-%Recieve
-RxAng = str2double(get(handles.RxAngle,'String')); 
-RxEllip = str2double(get(handles.RxEllipticity,'String')); 
-
-pos = get(gcf,'CurrentPoint');
-delta = handles.pos - pos;
-if (AngleControl)
-    DeltaAngle = -1*delta(1)*2;
-else
-    DeltaAngle = 0;
-end
-if (EllipControl)
-    DeltaEllip = delta(2)*2;   
-else
-    DeltaEllip = 0;
-end
-
-if (sqrt(DeltaAngle*DeltaAngle+DeltaEllip*DeltaEllip) < 1)
-    handles.InMotionFcn = 0;
-    % Update handles structure
-    guidata(hObject, handles);
-    return;
-end
-
-if (strcmp(handles.Select,'Tx'))
-    TxAng = TxAng - DeltaAngle;
-    if (AngleLock)
-        RxAng = RxAng - DeltaAngle;
-    end
-    TxEllip = TxEllip - DeltaEllip;
-    if (EllipLock)
-        RxEllip = RxEllip - DeltaEllip;
-    end
-else
-    RxAng = RxAng - DeltaAngle;
-    if (AngleLock)
-        TxAng = TxAng - DeltaAngle;
-    end
-    RxEllip = RxEllip - DeltaEllip;
-    if (EllipLock)
-        TxEllip = TxEllip - DeltaEllip;
-    end
-end
-
-%Angle is between 0 and 360 
-%Ellipticity is between -45 and 45
-while (TxAng > 360)
-    TxAng = TxAng - 360;
-end    
-while (TxAng < 0)
-    TxAng = TxAng + 360;
-end    
-if (TxEllip > 45)
-    TxEllip = TxEllip - 90;
-end    
-if (TxEllip < -45)
-    TxEllip = TxEllip + 90;
-end
-while (RxAng > 360)
-    RxAng = RxAng - 360;
-end    
-while (RxAng < 0)
-    RxAng = RxAng + 360;
-end    
-if (RxEllip > 45)
-    RxEllip = RxEllip - 90;
-end    
-if (RxEllip < -45)
-    RxEllip = RxEllip + 90;
-end
-    
-set(handles.TxAngle,'String',round(TxAng));
-set(handles.TxEllipticity,'String',round(TxEllip));
-set(handles.RxAngle,'String',round(RxAng));
-set(handles.RxEllipticity,'String',round(RxEllip));
-set(handles.TxAngleMan,'String',TxAng);
-set(handles.TxEllipMan,'String',TxEllip);
-set(handles.RxAngleMan,'String',RxAng);
-set(handles.RxEllipMan,'String',RxEllip);
-
-handles.pos = pos;
-
-%update Ellipse Plots (only if necessary)
-if (strcmp(handles.Select,'Tx') || AngleLock || EllipLock)
-    PlotPolEllipse(handles.TxPlot,TxAng,TxEllip);
-end
-if (strcmp(handles.Select,'Rx') || AngleLock || EllipLock)
-    PlotPolEllipse(handles.RxPlot,RxAng,RxEllip);
-end
-
-%Update Image
-handles.RxAngleFloat = RxAng;
-handles.RxEllipticityFloat = RxEllip;
-handles.TxAngleFloat = TxAng;    
-handles.TxEllipticityFloat = TxEllip;
 handles = UpdateImage(handles);
 
-handles.InMotionFcn = 0;
-
 % Update handles structure
 guidata(hObject, handles);
 
-
-% --- Executes on mouse press over figure background, over a disabled or
-% --- inactive control, or over an axes background.
-function figure1_WindowButtonDownFcn(hObject, eventdata, handles)
-% hObject    handle to figure1 (see GCBO)
+% --- Executes on button press in Cross1.
+function Cross1_Callback(hObject, eventdata, handles)
+% hObject    handle to Cross1 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-typ = get( gcf, 'SelectionType' );
-
-if strcmpi(typ,'normal')
-    %Left Mouse Click
-    handles.Select = 'Tx';
-elseif strcmpi(typ,'alt')
-    handles.Select = 'Rx';
-else
-    if ( get(handles.TxVCheck,'Value') == 0)
-        %set to HH
-        handles.TxAng = 0;
-        handles.TxEllip = 0;
-        handles.RxAng = 0;
-        handles.RxEllip = 0;
-    elseif (get(handles.TxHCheck,'Value') == 0)
-        %set to VV
-        handles.TxAng = 90;
-        handles.TxEllip = 0;
-        handles.RxAng = 90;
-        handles.RxEllip = 0;
-    end    
-    %reset all to "default", which varies based on input type
-    set(handles.TxAngle,'String',round(handles.TxAng));
-    set(handles.TxEllipticity,'String',round(handles.TxEllip));
-    set(handles.RxAngle,'String',round(handles.RxAng));
-    set(handles.RxEllipticity,'String',round(handles.RxEllip));
-    set(handles.TxAngleMan,'String',handles.TxAng);
-    set(handles.TxEllipMan,'String',handles.TxEllip);
-    set(handles.RxAngleMan,'String',handles.RxAng);
-    set(handles.RxEllipMan,'String',handles.RxEllip);    
-    handles.TxAngleFloat = handles.TxAng;
-    handles.RxAngleFloat = handles.RxAng;
-    handles.TxEllipticityFloat = handles.TxEllip;
-    handles.RxEllipticityFloat = handles.RxEllip;
-    PlotPolEllipse(handles.TxPlot,handles.TxAng,handles.TxEllip);
-    PlotPolEllipse(handles.RxPlot,handles.RxAng,handles.RxEllip);
-    UpdateImage(handles);
-    handles.Select = 'None';
+if strcmp(handles.TxPol,'HV') || strcmp(handles.TxPol,'VH')%#ok<*BDSCA> %linear Quad
+    set(handles.TxAngle,'String',0);
+    set(handles.RxAngle,'String',90);    
+    set(handles.TxEllipticity,'String',0);
+    set(handles.RxEllipticity,'String',0);   
+elseif strcmp(handles.TxPol,'H') %HD   
+    set(handles.TxAngle,'String',0);
+    set(handles.RxAngle,'String',90);    
+    set(handles.TxEllipticity,'String',0);
+    set(handles.RxEllipticity,'String',0);   
+elseif strcmp(handles.TxPol,'V') %VD
+     set(handles.TxAngle,'String',90);
+    set(handles.RxAngle,'String',0);    
+    set(handles.TxEllipticity,'String',0);
+    set(handles.RxEllipticity,'String',0);  
+    handles.TxAng = 90;
+elseif strcmp(handles.TxPol,'RHC') %RHC
+    set(handles.TxAngle,'String',0);
+    set(handles.RxAngle,'String',90);    
+    set(handles.TxEllipticity,'String',45);
+    set(handles.RxEllipticity,'String',-45);     
+elseif strcmp(handles.TxPol,'LHC') %LHC
+    set(handles.TxAngle,'String',0);
+    set(handles.RxAngle,'String',90);    
+    set(handles.TxEllipticity,'String',-45);
+    set(handles.RxEllipticity,'String',45);     
 end
 
-%store initial point
-handles.pos = get(gcf,'CurrentPoint'); 
+PlotPolEllipse(handles.TxPlot,1,handles);
+PlotPolEllipse(handles.RxPlot,0,handles);
+
+handles = UpdateImage(handles);
 
 % Update handles structure
 guidata(hObject, handles);
 
-
-% --- Executes on mouse press over figure background, over a disabled or
-% --- inactive control, or over an axes background.
-function figure1_WindowButtonUpFcn(hObject, eventdata, handles)
-% hObject    handle to figure1 (see GCBO)
+% --- Executes on button press in Co2.
+function Co2_Callback(hObject, eventdata, handles)
+% hObject    handle to Co2 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-handles.Select = 'None';
+%Quad (VV)
+if strcmp(handles.TxPol,'HV') || strcmp(handles.TxPol,'VH')
+    set(handles.TxAngle,'String',90);
+    set(handles.RxAngle,'String',90);    
+    set(handles.TxEllipticity,'String',0);
+    set(handles.RxEllipticity,'String',0); 
+elseif strcmp(handles.TxPol,'RHC')
+    set(handles.TxAngle,'String',0);
+    set(handles.RxAngle,'String',0);    
+    set(handles.TxEllipticity,'String',45);
+    set(handles.RxEllipticity,'String',0); 
+elseif strcmp(handles.TxPol,'LHC')
+    set(handles.TxAngle,'String',0);
+    set(handles.RxAngle,'String',0);    
+    set(handles.TxEllipticity,'String',-45);
+    set(handles.RxEllipticity,'String',0); 
+end
+
+PlotPolEllipse(handles.TxPlot,1,handles);
+PlotPolEllipse(handles.RxPlot,0,handles);
+
+handles = UpdateImage(handles);
+
+% Update handles structure
+guidata(hObject, handles);
+
+% --- Executes on button press in Cross2.
+function Cross2_Callback(hObject, eventdata, handles)
+% hObject    handle to Cross2 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+%Quad (VH)
+if strcmp(handles.TxPol,'HV') || strcmp(handles.TxPol,'VH')
+    set(handles.TxAngle,'String',90);
+    set(handles.RxAngle,'String',00);    
+    set(handles.TxEllipticity,'String',0);
+    set(handles.RxEllipticity,'String',0); 
+elseif strcmp(handles.TxPol,'RHC')
+    set(handles.TxAngle,'String',0);
+    set(handles.RxAngle,'String',0);    
+    set(handles.TxEllipticity,'String',45);
+    set(handles.RxEllipticity,'String',90); 
+elseif strcmp(handles.TxPol,'LHC')
+    set(handles.TxAngle,'String',0);
+    set(handles.RxAngle,'String',0);    
+    set(handles.TxEllipticity,'String',-45);
+    set(handles.RxEllipticity,'String',90); 
+end
+
+PlotPolEllipse(handles.TxPlot,1,handles);
+PlotPolEllipse(handles.RxPlot,0,handles);
+
+handles = UpdateImage(handles);
+
+% Update handles structure
+guidata(hObject, handles);
+
+% --- Executes on button press in CircCo.
+function CircCo_Callback(hObject, eventdata, handles)
+% hObject    handle to CircCo (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+%only for Quad
+set(handles.TxAngle,'String',0);
+set(handles.RxAngle,'String',0);    
+set(handles.TxEllipticity,'String',45);
+set(handles.RxEllipticity,'String',45); 
+
+PlotPolEllipse(handles.TxPlot,1,handles);
+PlotPolEllipse(handles.RxPlot,0,handles);
+
+handles = UpdateImage(handles);
+
+% Update handles structure
+guidata(hObject, handles);
+
+% --- Executes on button press in CircCross.
+function CircCross_Callback(hObject, eventdata, handles)
+% hObject    handle to CircCross (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+%only for Quad 
+set(handles.TxAngle,'String',0);
+set(handles.RxAngle,'String',0);    
+set(handles.TxEllipticity,'String',45);
+set(handles.RxEllipticity,'String',-45); 
+
+PlotPolEllipse(handles.TxPlot,1,handles);
+PlotPolEllipse(handles.RxPlot,0,handles);
+
+handles = UpdateImage(handles);
+
+% Update handles structure
+guidata(hObject, handles);
+
+% --- Executes on button press in PauliCo.
+function PauliCo_Callback(hObject, eventdata, handles)
+% hObject    handle to PauliCo (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+%only for Quad 
+set(handles.TxAngle,'String',135);
+set(handles.RxAngle,'String',135);    
+set(handles.TxEllipticity,'String',0);
+set(handles.RxEllipticity,'String',0); 
+
+PlotPolEllipse(handles.TxPlot,1,handles);
+PlotPolEllipse(handles.RxPlot,0,handles);
+
+handles = UpdateImage(handles);
+
+% Update handles structure
+guidata(hObject, handles);
+
+% --- Executes on button press in PauliCross.
+function PauliCross_Callback(hObject, eventdata, handles)
+% hObject    handle to PauliCross (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+%only for Quad 
+set(handles.TxAngle,'String',45);
+set(handles.RxAngle,'String',135);    
+set(handles.TxEllipticity,'String',0);
+set(handles.RxEllipticity,'String',0); 
+
+PlotPolEllipse(handles.TxPlot,1,handles);
+PlotPolEllipse(handles.RxPlot,0,handles);
+
+handles = UpdateImage(handles);
 
 % Update handles structure
 guidata(hObject, handles);
 
 
-function PlotPolEllipse(handle,Ang,Ellip)
+% --- Executes on button press in pushbutton9.
+function pushbutton9_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton9 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+
+
+function edit5_Callback(hObject, eventdata, handles)
+% hObject    handle to edit5 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of edit5 as text
+%        str2double(get(hObject,'String')) returns contents of edit5 as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function edit5_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to edit5 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --------------------------------------------------------------------
+function File_Callback(hObject, eventdata, handles)
+% hObject    handle to File (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+
+% --------------------------------------------------------------------
+function Open_Callback(hObject, eventdata, handles)
+% hObject    handle to Open (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+%get selection and launch appropriate file dialog
+%load last path
+if ispref('matlab_sar_toolbox','last_used_directory')
+    pathstr = getpref('matlab_sar_toolbox','last_used_directory');
+    if ~ischar(pathstr)||~exist(pathstr,'dir')
+        pathstr = pwd;
+    end
+else
+    pathstr = pwd;
+end
+
+%get iq filename
+[fname, path] = uigetfile( sar_file_extensions('complex'),...
+    'Open Image File',pathstr,'MultiSelect', 'on');
+if isnumeric(fname)
+    return;
+end
+
+filenames = {};
+if (iscell(fname))
+    for i=1:length(fname)
+        filenames{i} = strcat(path,fname{i});
+    end
+else      
+    filenames{1} = strcat(path,fname);
+end
+
+setpref('matlab_sar_toolbox','last_used_directory',path); %store path
+
+%Load Image
+LoadImage(filenames,hObject,handles,[],1);
+
+
+
+function PlotPolEllipse(handle,Tx,handles)
+
+%Tx flag 1 for Tx, 0 for Rx
+if Tx
+    Ang = str2double(get(handles.TxAngle,'String'));
+    Ellip = str2double(get(handles.TxEllipticity,'String'));
+else
+    Ang = str2double(get(handles.RxAngle,'String'));
+    Ellip = str2double(get(handles.RxEllipticity,'String'));
+end
 
 Ang = -1*Ang;
 
@@ -702,307 +985,180 @@ hold off;
 drawnow expose;
 
 
-function Filename_Callback(hObject, eventdata, handles)
-% hObject    handle to Filename (see GCBO)
+% --- Executes on mouse motion over figure - except title and menu.
+function figure1_WindowButtonMotionFcn(hObject, eventdata, handles)
+% hObject    handle to figure1 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-% Hints: get(hObject,'String') returns contents of Filename as text
-%        str2double(get(hObject,'String')) returns contents of Filename as a double
-
-
-% --- Executes during object creation, after setting all properties.
-function Filename_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to Filename (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-% Hint: edit controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-
-% --- Executes on button press in BrowseFile.
-function BrowseFile_Callback(hObject, eventdata, handles)
-% hObject    handle to BrowseFile (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-%load last path
-if ispref('matlab_sar_toolbox','last_used_directory')
-    pathstr = getpref('matlab_sar_toolbox','last_used_directory');
-    if ~ischar(pathstr)||~exist(pathstr,'dir')
-        pathstr = pwd;
-    end
-else
-    pathstr = pwd;
-end
-
-%get iq filename
-[fname, path] = uigetfile( sar_file_extensions('complex'),...
-    'Open Image File',pathstr,'MultiSelect', 'on');
-if isnumeric(fname)
+if (isfield(handles,'Select')&&strcmp(handles.Select,'None'))
     return;
 end
 
-filenames = {};
-if (iscell(fname))
-    for i=1:length(fname)
-        filenames{i} = strcat(path,fname{i});
-    end
-else      
-    filenames{1} = strcat(path,fname);
+if ~isfield(handles,'InMotionFcn') || handles.InMotionFcn == 1 || ...
+        isempty(handles.mitm_hand.Metadata) || ...
+        handles.SelectingRegion == 1 || handles.PixelSelect == 1
+    return;
 end
 
-setpref('matlab_sar_toolbox','last_used_directory',path); %store path
+handles.InMotionFcn = 1;
+% Update handles structure
+guidata(hObject, handles);
 
-%Load Image
-LoadImage(filenames,hObject,handles,[],1);
+AngleControl = get(handles.AngleControl,'Value');
+EllipControl = get(handles.EllipticityControl,'Value');
 
+AngleLock = get(handles.AngleLock,'Value');
+EllipLock = get(handles.EllipticityLock,'Value');
 
-% --- Executes on button press in HHCheck.
-function HHCheck_Callback(hObject, eventdata, handles)
-% hObject    handle to HHCheck (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
+%Transmit
+TxAng = str2double(get(handles.TxAngle,'String')); 
+TxEllip = str2double(get(handles.TxEllipticity,'String')); 
+%Recieve
+RxAng = str2double(get(handles.RxAngle,'String')); 
+RxEllip = str2double(get(handles.RxEllipticity,'String')); 
 
-% Hint: get(hObject,'Value') returns toggle state of HHCheck
-
-
-% --- Executes on button press in HVCheck.
-function HVCheck_Callback(hObject, eventdata, handles)
-% hObject    handle to HVCheck (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hint: get(hObject,'Value') returns toggle state of HVCheck
-
-
-% --- Executes on button press in VVCheck.
-function VVCheck_Callback(hObject, eventdata, handles)
-% hObject    handle to VVCheck (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hint: get(hObject,'Value') returns toggle state of VVCheck
-
-
-% --- Executes on button press in VHCheck.
-function VHCheck_Callback(hObject, eventdata, handles)
-% hObject    handle to VHCheck (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hint: get(hObject,'Value') returns toggle state of VHCheck
-
-
-function LoadImage(iqfiles,hObject,handles,aoi,segment)
-
-% Some file formats allow multiple polarimetric channels to be stored
-% within a single file.  Some file formats have polarimetric datasets
-% stored across multiple files.
-
-% Input arguments
-if ischar(iqfiles) % Input can be single string or cell array of strings
-    iqfiles = {iqfiles}; % Just treat both types as cell array
-end
-set(handles.Filename,'String',iqfiles{1});
-
-% Open file(s)
-handles.mitm_hand.DataTransformFcn = [];
-handles.mitm_hand.close();
-if isempty(aoi) % Default is to show entire image
-    handles.mitm_hand.openFile(iqfiles);
-else % AOI was passed in
-    handles.mitm_hand.openFile(iqfiles, true);
-    pixels_available = floor(getpixelposition(handles.mitm_hand.AxesHandle))-1;
-    handles.mitm_hand.setView('CenterPos',aoi(1:2)+(aoi(3:4)/2),...
-        'Zoom',max(ceil(aoi(3:4)./pixels_available(3:4))),'Frame',segment(1));
-end
-meta = handles.mitm_hand.Metadata{handles.mitm_hand.Frame};
-delete(get(handles.metaicon,'Children')); % Clear old metaicon
-try
-    MetaIcon_Complex(meta,'handle',handles.metaicon);
-end
-
-% Set GUI fields based on data
-handles.HH=find(strcmpi('H:H',meta.ImageFormation.TxRcvPolarizationProc));
-handles.HV=find(strcmpi('H:V',meta.ImageFormation.TxRcvPolarizationProc));
-handles.VH=find(strcmpi('V:H',meta.ImageFormation.TxRcvPolarizationProc));
-handles.VV=find(strcmpi('V:V',meta.ImageFormation.TxRcvPolarizationProc));
-set(handles.TxHCheck,'Value',~isempty(handles.HH)||~isempty(handles.HV));
-set(handles.TxVCheck,'Value',~isempty(handles.VV)||~isempty(handles.VH));
-set(handles.RxHCheck,'Value',~isempty(handles.HH)||~isempty(handles.VH));
-set(handles.RxVCheck,'Value',~isempty(handles.VV)||~isempty(handles.HV));
-set([handles.TxHCheck handles.TxVCheck handles.RxHCheck handles.RxVCheck],'Enable','off');
-if ~isempty(handles.HH)
-    set(handles.TxHCheck,'Enable','on');
-end
-if ~isempty(handles.HV)
-    set(handles.TxHCheck,'Enable','on');
-end
-if ~isempty(handles.VH)
-    set(handles.TxVCheck,'Enable','on');
-end
-if ~isempty(handles.VV)
-    set(handles.TxVCheck,'Enable','on');
-end
-if ~isempty(handles.HH)&&~isempty(handles.VV)
-    % Complete "tri-pol" datasets
-    if isempty(handles.HV)&&~isempty(handles.VH)
-        handles.HV = handles.VH;
-    elseif ~isempty(handles.HV)&&isempty(handles.VH)
-        handles.VH = handles.HV;
-    end
-    set([handles.CoPolAngEllip handles.CrossPolAngEllip],'Enable','on');
+pos = get(gcf,'CurrentPoint');
+delta = handles.pos - pos;
+if (AngleControl)
+    DeltaAngle = -1*delta(1)*2;
 else
-    set([handles.CoPolAngEllip handles.CrossPolAngEllip],'Enable','off');
-    set(handles.RxAngleEllip,'Value',1);
+    DeltaAngle = 0;
 end
-
-%enable controls
-set(handles.HHButton,'Enable','on');
-set(handles.HVButton,'Enable','on');
-set(handles.VHButton,'Enable','on');
-set(handles.VVButton,'Enable','on');
-set(handles.CircCoButton,'Enable','on');
-set(handles.CircCrossButton,'Enable','on');
-set(handles.HHPlusVVButton,'Enable','on');
-set(handles.HHMinusVVButton,'Enable','on');
-set(handles.Color,'Enable','on');
-set(handles.Grayscale,'Enable','on');
-set(handles.TxAngleMan,'Enable','on');
-set(handles.TxAngleInc,'Enable','on');
-set(handles.TxAngleUp,'Enable','on');
-set(handles.TxAngleDown,'Enable','on');
-set(handles.TxEllipMan,'Enable','on');
-set(handles.TxEllipInc,'Enable','on');
-set(handles.TxEllipUp,'Enable','on');
-set(handles.TxEllipDown,'Enable','on');
-set(handles.AngleLockMan,'Enable','on');
-set(handles.EllipLockMan,'Enable','on');
-
-set(handles.RunDecomp,'Enable','on');
-set(handles.Generate,'Enable','on');
-set(handles.SaveDecomp,'Enable','on');
-set(handles.SelectPixel,'Enable','on');
-set(handles.SelectAOI,'Enable','on');
-set(handles.SetRed,'Enable','on');
-set(handles.SetGreen,'Enable','on');
-set(handles.SetBlue,'Enable','on');
-
-set([handles.TxManPanel handles.RxManPanel],'Visible','on');
-
-%disable controls if only one Tx Pol
-if (get(handles.TxHCheck,'Value') == 0)
-    %disable appropriate buttons
-    set(handles.HHButton,'enable','off');
-    set(handles.HVButton,'enable','off');
-
-    set(handles.CircCoButton,'Enable','off');
-    set(handles.CircCrossButton,'Enable','off');
-    set(handles.HHPlusVVButton,'Enable','off');
-    set(handles.HHMinusVVButton,'Enable','off');
-
-    set(handles.AngleLock,'Value',0);
-    set(handles.AngleLock,'Enable','off');
-    set(handles.EllipLock,'Value',0);
-    set(handles.EllipLock,'Enable','off');
-    set(handles.TxAngleMan,'Enable','off');
-    set(handles.TxAngleInc,'Enable','off');
-    set(handles.TxAngleUp,'Enable','off');
-    set(handles.TxAngleDown,'Enable','off');
-    set(handles.TxEllipMan,'Enable','off');
-    set(handles.TxEllipInc,'Enable','off');
-    set(handles.TxEllipUp,'Enable','off');
-    set(handles.TxEllipDown,'Enable','off');
-    set(handles.AngleLockMan,'Enable','off');
-    set(handles.EllipLockMan,'Enable','off');
-    set(handles.AngleLockMan,'Value',0);
-    set(handles.EllipLockMan,'Value',0);  
-    set(handles.TxManPanel,'Visible','off');
-end
-if (get(handles.TxVCheck,'Value') == 0)
-    %disable appropriate buttons
-    set(handles.VHButton,'enable','off');
-    set(handles.VVButton,'enable','off');
-
-    set(handles.CircCoButton,'Enable','off');
-    set(handles.CircCrossButton,'Enable','off');
-    set(handles.HHPlusVVButton,'Enable','off');
-    set(handles.HHMinusVVButton,'Enable','off');
-
-    set(handles.AngleLock,'Value',0);
-    set(handles.AngleLock,'Enable','off');
-    set(handles.EllipLock,'Value',0);
-    set(handles.EllipLock,'Enable','off');
-    set(handles.TxAngleMan,'Enable','off');
-    set(handles.TxAngleInc,'Enable','off');
-    set(handles.TxAngleUp,'Enable','off');
-    set(handles.TxAngleDown,'Enable','off');
-    set(handles.TxEllipMan,'Enable','off');
-    set(handles.TxEllipInc,'Enable','off');
-    set(handles.TxEllipUp,'Enable','off');
-    set(handles.TxEllipDown,'Enable','off');
-    set(handles.AngleLockMan,'Enable','off');
-    set(handles.EllipLockMan,'Enable','off');
-    set(handles.AngleLockMan,'Value',0);
-    set(handles.EllipLockMan,'Value',0);   
-    set(handles.TxManPanel,'Visible','off');
-end       
-
-%set data to the first co-pol we have
-if (handles.HH)
-    set(handles.TxAngle,'String',0);
-    set(handles.RxAngle,'String',0);
-    set(handles.TxEllipticity,'String',0);
-    set(handles.RxEllipticity,'String',0);
-    handles.TxAngleFloat = 0;
-    handles.RxAngleFloat = 0;
-    handles.TxEllipticityFloat = 0;
-    handles.RxEllipticityFloat = 0;
-    PlotPolEllipse(handles.TxPlot,0,0);
-    PlotPolEllipse(handles.RxPlot,0,0);
-    handles = UpdateImage(handles);
+if (EllipControl)
+    DeltaEllip = delta(2)*2;   
 else
-    set(handles.TxAngle,'String',90);
-    set(handles.RxAngle,'String',90);
-    set(handles.TxEllipticity,'String',0);
-    set(handles.RxEllipticity,'String',0);
-    handles.TxAngleFloat = 90;
-    handles.RxAngleFloat = 90;
-    handles.TxEllipticityFloat = 0;
-    handles.RxEllipticityFloat = 0;
-    PlotPolEllipse(handles.TxPlot,90,0);
-    PlotPolEllipse(handles.RxPlot,90,0);
-    handles = UpdateImage(handles);
+    DeltaEllip = 0;
 end
+
+if (sqrt(DeltaAngle*DeltaAngle+DeltaEllip*DeltaEllip) < 1)
+    handles.InMotionFcn = 0;
+    % Update handles structure
+    guidata(hObject, handles);
+    return;
+end
+
+if (strcmp(handles.Select,'Tx'))
+    TxAng = TxAng - DeltaAngle;
+    if (AngleLock)
+        RxAng = RxAng - DeltaAngle;
+    end
+    TxEllip = TxEllip - DeltaEllip;
+    if (EllipLock)
+        RxEllip = RxEllip - DeltaEllip;
+    end
+else
+    RxAng = RxAng - DeltaAngle;
+    if (AngleLock)
+        TxAng = TxAng - DeltaAngle;
+    end
+    RxEllip = RxEllip - DeltaEllip;
+    if (EllipLock)
+        TxEllip = TxEllip - DeltaEllip;
+    end
+end
+
+%Angle is between 0 and 360 
+%Ellipticity is between -45 and 45
+while (TxAng > 360)
+    TxAng = TxAng - 360;
+end    
+while (TxAng < 0)
+    TxAng = TxAng + 360;
+end    
+if (TxEllip > 45)
+    TxEllip = TxEllip - 90;
+end    
+if (TxEllip < -45)
+    TxEllip = TxEllip + 90;
+end
+while (RxAng > 360)
+    RxAng = RxAng - 360;
+end    
+while (RxAng < 0)
+    RxAng = RxAng + 360;
+end    
+if (RxEllip > 45)
+    RxEllip = RxEllip - 90;
+end    
+if (RxEllip < -45)
+    RxEllip = RxEllip + 90;
+end
+    
+set(handles.TxAngle,'String',round(TxAng));
+set(handles.TxEllipticity,'String',round(TxEllip));
+set(handles.RxAngle,'String',round(RxAng));
+set(handles.RxEllipticity,'String',round(RxEllip));
+
+handles.pos = pos;
+
+%update Ellipse Plots (only if necessary)
+if (strcmp(handles.Select,'Tx') || AngleLock || EllipLock)
+    PlotPolEllipse(handles.TxPlot,1,handles);
+end
+if (strcmp(handles.Select,'Rx') || AngleLock || EllipLock)
+    PlotPolEllipse(handles.RxPlot,0,handles);
+end
+
+%Update Image
+handles = UpdateImage(handles);
+
+handles.InMotionFcn = 0;
+
+% Update handles structure
+guidata(hObject, handles);
+
+% --- Executes on mouse press over figure background, over a disabled or
+% --- inactive control, or over an axes background.
+function figure1_WindowButtonDownFcn(hObject, eventdata, handles)
+% hObject    handle to figure1 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+typ = get( gcf, 'SelectionType' );
+
+if strcmpi(typ,'normal')
+    if strcmpi(handles.TxPol,'HV')
+        %Left Mouse Click
+        handles.Select = 'Tx';
+    else
+        handles.Select = 'None'; %dual pol
+    end
+elseif strcmpi(typ,'alt')
+    %right mouse click
+    handles.Select = 'Rx';
+else
+    %double click, reset to default view
+    Co1_Callback(hObject, eventdata, handles)
+end
+
+%store initial point
+handles.pos = get(gcf,'CurrentPoint'); 
 
 % Update handles structure
 guidata(hObject, handles);
 
 
-function handles = UpdateImage(handles)
-% Compute coefficients
-[coefs(1,1,handles.HH) coefs(1,1,handles.HV) ...
-    coefs(1,1,handles.VH) coefs(1,1,handles.VV)] = ...
-    ComputePolCoeff(handles.TxAngleFloat,handles.RxAngleFloat,...
-    handles.TxEllipticityFloat,handles.RxEllipticityFloat);
-% Apply coefficients
-handles.mitm_hand.DataTransformFcn = @(x) sum(bsxfun(@times,x,coefs),3);
+% --- Executes on mouse press over figure background, over a disabled or
+% --- inactive control, or over an axes background.
+function figure1_WindowButtonUpFcn(hObject, eventdata, handles)
+% hObject    handle to figure1 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
 
-if (handles.aviflag == 1)
-    %record frame
-    temp.TxAngle = handles.TxAngleFloat;
-    temp.RxAngle = handles.RxAngleFloat;
-    temp.TxEllip = handles.TxEllipticityFloat;
-    temp.RxEllip = handles.RxEllipticityFloat;
-    temp.Color = get(handles.Color,'Value');
-    handles.aviparams = horzcat(handles.aviparams,temp);         
-    guidata(gcf, handles); % Update handles structure
-end
+handles.Select = 'None';
+
+% Update handles structure
+guidata(hObject, handles);
+
+
+% --- Executes on button press in EllipticityLock.
+function EllipticityLock_Callback(hObject, eventdata, handles)
+% hObject    handle to EllipticityLock (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of EllipticityLock
 
 
 % --- Executes on button press in AngleLock.
@@ -1013,576 +1169,6 @@ function AngleLock_Callback(hObject, eventdata, handles)
 
 % Hint: get(hObject,'Value') returns toggle state of AngleLock
 
-
-% --- Executes on button press in EllipCheck.
-function EllipCheck_Callback(hObject, eventdata, handles)
-% hObject    handle to EllipCheck (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hint: get(hObject,'Value') returns toggle state of EllipCheck
-
-
-% --- Executes on button press in HHButton.
-function HHButton_Callback(hObject, eventdata, handles)
-% hObject    handle to HHButton (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-set(handles.TxAngle,'String',0);
-set(handles.RxAngle,'String',0);
-set(handles.TxAngleMan,'String',0);
-set(handles.RxAngleMan,'String',0);
-set(handles.TxEllipticity,'String',0);
-set(handles.RxEllipticity,'String',0);
-set(handles.TxEllipMan,'String',0);
-set(handles.RxEllipMan,'String',0);
-handles.TxAngleFloat = 0;
-handles.RxAngleFloat = 0;
-handles.TxEllipticityFloat = 0;
-handles.RxEllipticityFloat = 0;
-PlotPolEllipse(handles.TxPlot,0,0);
-PlotPolEllipse(handles.RxPlot,0,0);
-UpdateImage(handles);
-
-
-% --- Executes on button press in VVButton.
-function VVButton_Callback(hObject, eventdata, handles)
-% hObject    handle to VVButton (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-set(handles.TxAngle,'String',90);
-set(handles.RxAngle,'String',90);
-set(handles.TxAngleMan,'String',90);
-set(handles.RxAngleMan,'String',90);
-set(handles.TxEllipticity,'String',0);
-set(handles.RxEllipticity,'String',0);
-set(handles.TxEllipMan,'String',0);
-set(handles.RxEllipMan,'String',0);
-handles.TxAngleFloat = 90;
-handles.RxAngleFloat = 90;
-handles.TxEllipticityFloat = 0;
-handles.RxEllipticityFloat = 0;
-PlotPolEllipse(handles.TxPlot,90,0);
-PlotPolEllipse(handles.RxPlot,90,0);
-UpdateImage(handles);
-
-
-% --- Executes on button press in HVButton.
-function HVButton_Callback(hObject, eventdata, handles)
-% hObject    handle to HVButton (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-set(handles.TxAngle,'String',0);
-set(handles.RxAngle,'String',90);
-set(handles.TxAngleMan,'String',0);
-set(handles.RxAngleMan,'String',90);
-set(handles.TxEllipticity,'String',0);
-set(handles.RxEllipticity,'String',0);
-set(handles.TxEllipMan,'String',0);
-set(handles.RxEllipMan,'String',0);
-handles.TxAngleFloat = 0;
-handles.RxAngleFloat = 90;
-handles.TxEllipticityFloat = 0;
-handles.RxEllipticityFloat = 0;
-PlotPolEllipse(handles.TxPlot,0,0);
-PlotPolEllipse(handles.RxPlot,90,0);
-UpdateImage(handles);
-
-
-% --- Executes on button press in VHButton.
-function VHButton_Callback(hObject, eventdata, handles)
-% hObject    handle to VHButton (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-set(handles.TxAngle,'String',90);
-set(handles.RxAngle,'String',0);
-set(handles.TxAngleMan,'String',90);
-set(handles.RxAngleMan,'String',0);
-set(handles.TxEllipticity,'String',0);
-set(handles.RxEllipticity,'String',0);
-set(handles.TxEllipMan,'String',0);
-set(handles.RxEllipMan,'String',0);
-handles.TxAngleFloat = 90;
-handles.RxAngleFloat = 0;
-handles.TxEllipticityFloat = 0;
-handles.RxEllipticityFloat = 0;
-PlotPolEllipse(handles.TxPlot,90,0);
-PlotPolEllipse(handles.RxPlot,0,0);
-UpdateImage(handles);
-
-
-% --- Executes on button press in CircCoButton.
-function CircCoButton_Callback(hObject, eventdata, handles)
-% hObject    handle to CircCoButton (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-set(handles.TxAngle,'String',0);
-set(handles.RxAngle,'String',0);
-set(handles.TxAngleMan,'String',0);
-set(handles.RxAngleMan,'String',0);
-set(handles.TxEllipticity,'String',45);
-set(handles.RxEllipticity,'String',45);
-set(handles.TxEllipMan,'String',45);
-set(handles.RxEllipMan,'String',45);
-handles.TxAngleFloat = 0;
-handles.RxAngleFloat = 0;
-handles.TxEllipticityFloat = 45;
-handles.RxEllipticityFloat = 45;
-PlotPolEllipse(handles.TxPlot,0,45);
-PlotPolEllipse(handles.RxPlot,0,45);
-UpdateImage(handles);
-
-
-% --- Executes on button press in CircCrossButton.
-function CircCrossButton_Callback(hObject, eventdata, handles)
-% hObject    handle to CircCrossButton (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-set(handles.TxAngle,'String',0);
-set(handles.RxAngle,'String',0);
-set(handles.TxAngleMan,'String',0);
-set(handles.RxAngleMan,'String',0);
-set(handles.TxEllipticity,'String',45);
-set(handles.RxEllipticity,'String',-45);
-set(handles.TxEllipMan,'String',45);
-set(handles.RxEllipMan,'String',-45);
-handles.TxAngleFloat = 0;
-handles.RxAngleFloat = 0;
-handles.TxEllipticityFloat = 45;
-handles.RxEllipticityFloat = -45;
-PlotPolEllipse(handles.TxPlot,0,45);
-PlotPolEllipse(handles.RxPlot,0,-45);
-UpdateImage(handles);
-
-
-% --- Executes on button press in HHPlusVVButton.
-function HHPlusVVButton_Callback(hObject, eventdata, handles)
-% hObject    handle to HHPlusVVButton (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-set(handles.TxAngle,'String',135);
-set(handles.RxAngle,'String',135);
-set(handles.TxAngleMan,'String',135);
-set(handles.RxAngleMan,'String',135);
-set(handles.TxEllipticity,'String',0);
-set(handles.RxEllipticity,'String',0);
-set(handles.TxEllipMan,'String',0);
-set(handles.RxEllipMan,'String',0);
-handles.TxAngleFloat = 135;
-handles.RxAngleFloat = 135;
-handles.TxEllipticityFloat = 0;
-handles.RxEllipticityFloat = 0;
-PlotPolEllipse(handles.TxPlot,135,0);
-PlotPolEllipse(handles.RxPlot,135,0);
-UpdateImage(handles);
-
-
-% --- Executes on button press in HHMinusVVButton.
-function HHMinusVVButton_Callback(hObject, eventdata, handles)
-% hObject    handle to HHMinusVVButton (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-set(handles.TxAngle,'String',45);
-set(handles.RxAngle,'String',135);
-set(handles.TxAngleMan,'String',45);
-set(handles.RxAngleMan,'String',135);
-set(handles.TxEllipticity,'String',0);
-set(handles.RxEllipticity,'String',0);
-set(handles.TxEllipMan,'String',0);
-set(handles.RxEllipMan,'String',0);
-handles.TxAngleFloat = 45;
-handles.RxAngleFloat = 135;
-handles.TxEllipticityFloat = 0;
-handles.RxEllipticityFloat = 0;
-PlotPolEllipse(handles.TxPlot,45,0);
-PlotPolEllipse(handles.RxPlot,135,0);
-UpdateImage(handles);
-
-
-% --- Executes on button press in AngleControl.
-function AngleControl_Callback(hObject, eventdata, handles)
-% hObject    handle to AngleControl (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hint: get(hObject,'Value') returns toggle state of AngleControl
-
-
-% --- Executes on button press in EllipControl.
-function EllipControl_Callback(hObject, eventdata, handles)
-% hObject    handle to EllipControl (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hint: get(hObject,'Value') returns toggle state of EllipControl
-
-
-function Colormap_Callback(hObject, eventdata)
-
-handles = guidata(hObject);
-if get(handles.Color,'Value')
-    colormap(handles.mitm_hand.AxesHandle,jet);
-else
-    colormap(handles.mitm_hand.AxesHandle,gray);
-end
-
-
-% --- Executes on button press in RxHCheck.
-function RxHCheck_Callback(hObject, eventdata, handles)
-% hObject    handle to RxHCheck (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-
-% --- Executes on button press in RxVCheck.
-function RxVCheck_Callback(hObject, eventdata, handles)
-% hObject    handle to RxVCheck (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hint: get(hObject,'Value') returns toggle state of RxVCheck
-
-
-% --- Executes on button press in TxHCheck.
-function TxHCheck_Callback(hObject, eventdata, handles)
-% hObject    handle to TxHCheck (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-val = get(handles.TxHCheck,'Value');
-VVal = get(handles.TxVCheck,'Value');
-if (val == 0)    
-    if (VVal == 0)
-        msgbox('Must Have at Least One Tx Polarization!!!');
-        set(handles.TxHCheck,'Value',1);
-        return;
-    else
-        %set TxPol to V
-        set(handles.TxAngle,'String',90);
-        set(handles.TxEllipticity,'String',0);        
-        handles.TxAngleFloat = 90;        
-        handles.TxEllipticityFloat = 0;        
-        PlotPolEllipse(handles.TxPlot,90,0);
-        UpdateImage(handles);
-        
-        %disable appropriate buttons
-        set(handles.HHButton,'enable','off');
-        set(handles.HVButton,'enable','off');
-        set(handles.CircCoButton,'Enable','off');
-        set(handles.CircCrossButton,'Enable','off');
-        set(handles.HHPlusVVButton,'Enable','off');
-        set(handles.HHMinusVVButton,'Enable','off');  
-        set(handles.TxManPanel,'Visible','off');
-        
-        set(handles.AngleLock,'Value',0);
-        set(handles.AngleLock,'Enable','off');
-        set(handles.EllipLock,'Value',0);
-        set(handles.EllipLock,'Enable','off');
-    end 
-else
-    set(handles.HHButton,'enable','on');
-    set(handles.HVButton,'enable','on');
-    if (VVal == 1)
-        set(handles.CircCoButton,'Enable','on');
-        set(handles.CircCrossButton,'Enable','on');
-        set(handles.HHPlusVVButton,'Enable','on');
-        set(handles.HHMinusVVButton,'Enable','on');   
-        set(handles.AngleLock,'Enable','on');        
-        set(handles.EllipLock,'Enable','on');
-        set(handles.TxManPanel,'Visible','on');
-    end        
-end
-
-
-% --- Executes on button press in TxVCheck.
-function TxVCheck_Callback(hObject, eventdata, handles)
-% hObject    handle to TxVCheck (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-val = get(handles.TxVCheck,'Value');
-HVal = get(handles.TxHCheck,'Value');
-if (val == 0)    
-    if (HVal == 0)
-        msgbox('Must Have at Least One Tx Polarization!!!');
-        set(handles.TxVCheck,'Value',1);
-        return;
-    else
-        %set TxPol to V
-        set(handles.TxAngle,'String',0);
-        set(handles.TxEllipticity,'String',0);        
-        handles.TxAngleFloat = 0;        
-        handles.TxEllipticityFloat = 0;        
-        PlotPolEllipse(handles.TxPlot,0,0);
-        UpdateImage(handles);
-        
-        %disable appropriate buttons
-        set(handles.VHButton,'enable','off');
-        set(handles.VVButton,'enable','off');
-        set(handles.CircCoButton,'Enable','off');
-        set(handles.CircCrossButton,'Enable','off');
-        set(handles.HHPlusVVButton,'Enable','off');
-        set(handles.HHMinusVVButton,'Enable','off');
-        set(handles.TxManPanel,'Visible','off');
-        
-        set(handles.AngleLock,'Value',0);
-        set(handles.AngleLock,'Enable','off');
-        set(handles.EllipLock,'Value',0);
-        set(handles.EllipLock,'Enable','off');
-    end
-else
-    set(handles.VHButton,'enable','on');
-    set(handles.VVButton,'enable','on');
-    if (HVal == 1)
-        set(handles.CircCoButton,'Enable','on');
-        set(handles.CircCrossButton,'Enable','on');
-        set(handles.HHPlusVVButton,'Enable','on');
-        set(handles.HHMinusVVButton,'Enable','on');
-        set(handles.AngleLock,'Enable','on');        
-        set(handles.EllipLock,'Enable','on');
-        set(handles.TxManPanel,'Visible','on');
-    end    
-end
-
-
-% --- Executes on button press in EllipLock.
-function EllipLock_Callback(hObject, eventdata, handles)
-% hObject    handle to EllipLock (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hint: get(hObject,'Value') returns toggle state of EllipLock
-
-
-function RxAngleMan_Callback(hObject, eventdata, handles)
-% hObject    handle to RxAngleMan (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hints: get(hObject,'String') returns contents of RxAngleMan as text
-%        str2double(get(hObject,'String')) returns contents of RxAngleMan as a double
-
-
-% --- Executes during object creation, after setting all properties.
-function RxAngleMan_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to RxAngleMan (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-% Hint: edit controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-
-% --- Executes on button press in RxAngleUp.
-function RxAngleUp_Callback(hObject, eventdata, handles)
-% hObject    handle to RxAngleUp (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-RxAng = str2double(get(handles.RxAngleMan,'String')); 
-RxEllip = str2double(get(handles.RxEllipMan,'String')); 
-RxAngleInc = str2double(get(handles.RxAngleInc,'String')); 
-AngleLock = get(handles.AngleLockMan,'Value');
-
-RxAng = RxAng + RxAngleInc;
-if (RxAng > 360)
-    RxAng = RxAng - 360;
-end
-handles.RxAngleFloat = RxAng;
-set(handles.RxAngleMan,'String',RxAng);
-set(handles.RxAngle,'String',round(RxAng));
-PlotPolEllipse(handles.RxPlot,RxAng,RxEllip);
-
-if (AngleLock)
-    TxAng = str2double(get(handles.TxAngleMan,'String')); 
-    TxEllip = str2double(get(handles.TxEllipMan,'String')); 
-    TxAng = TxAng + RxAngleInc;
-    if (TxAng > 360)
-        TxAng = TxAng - 360;
-    end
-    handles.TxAngleFloat = TxAng;
-    set(handles.TxAngleMan,'String',TxAng);
-    set(handles.TxAngle,'String',round(TxAng));
-    PlotPolEllipse(handles.TxPlot,TxAng,TxEllip);
-end
-
-UpdateImage(handles);
-
-
-% --- Executes on button press in RxAngleDown.
-function RxAngleDown_Callback(hObject, eventdata, handles)
-% hObject    handle to RxAngleDown (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-RxAng = str2double(get(handles.RxAngleMan,'String')); 
-RxEllip = str2double(get(handles.RxEllipMan,'String')); 
-RxAngleInc = str2double(get(handles.RxAngleInc,'String')); 
-AngleLock = get(handles.AngleLockMan,'Value');
-
-RxAng = RxAng - RxAngleInc;
-if (RxAng < 0)
-    RxAng = RxAng + 360;
-end
-handles.RxAngleFloat = RxAng;
-set(handles.RxAngleMan,'String',RxAng);
-set(handles.RxAngle,'String',round(RxAng));
-PlotPolEllipse(handles.RxPlot,RxAng,RxEllip);
-
-if (AngleLock)
-    TxAng = str2double(get(handles.TxAngleMan,'String')); 
-    TxEllip = str2double(get(handles.TxEllipMan,'String')); 
-    TxAng = TxAng - RxAngleInc;
-    if (TxAng < 0)
-        TxAng = TxAng + 360;
-    end
-    handles.TxAngleFloat = TxAng;
-    set(handles.TxAngleMan,'String',TxAng);
-    set(handles.TxAngle,'String',round(TxAng));
-    PlotPolEllipse(handles.TxPlot,TxAng,TxEllip);
-end
-
-UpdateImage(handles);
-
-
-function RxAngleInc_Callback(hObject, eventdata, handles)
-% hObject    handle to RxAngleInc (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hints: get(hObject,'String') returns contents of RxAngleInc as text
-%        str2double(get(hObject,'String')) returns contents of RxAngleInc as a double
-
-
-% --- Executes during object creation, after setting all properties.
-function RxAngleInc_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to RxAngleInc (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-% Hint: edit controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-
-function RxEllipMan_Callback(hObject, eventdata, handles)
-% hObject    handle to RxEllipMan (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hints: get(hObject,'String') returns contents of RxEllipMan as text
-%        str2double(get(hObject,'String')) returns contents of RxEllipMan as a double
-
-
-% --- Executes during object creation, after setting all properties.
-function RxEllipMan_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to RxEllipMan (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-% Hint: edit controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-
-% --- Executes on button press in RxEllipUp.
-function RxEllipUp_Callback(hObject, eventdata, handles)
-% hObject    handle to RxEllipUp (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-RxAng = str2double(get(handles.RxAngleMan,'String')); 
-RxEllip = str2double(get(handles.RxEllipMan,'String')); 
-RxEllipInc = str2double(get(handles.RxEllipInc,'String')); 
-EllipLock = get(handles.EllipLockMan,'Value');
-
-RxEllip = RxEllip + RxEllipInc;
-if (RxEllip > 45)
-    RxEllip = RxEllip - 90;
-end
-handles.RxEllipticityFloat = RxEllip;
-set(handles.RxEllipMan,'String',RxEllip);
-set(handles.RxEllipticity,'String',round(RxEllip));
-PlotPolEllipse(handles.RxPlot,RxAng,RxEllip);
-
-if (EllipLock)
-    TxAng = str2double(get(handles.TxAngleMan,'String')); 
-    TxEllip = str2double(get(handles.TxEllipMan,'String')); 
-    TxEllip = TxEllip + RxEllipInc;
-    if (TxEllip > 45)
-        TxEllip = TxEllip - 90;
-    end
-    handles.TxEllipFloat = TxEllip;
-    set(handles.TxEllipMan,'String',TxEllip);
-    set(handles.TxEllipticity,'String',round(TxEllip));
-    PlotPolEllipse(handles.TxPlot,TxAng,TxEllip);
-end
-
-UpdateImage(handles);
-
-
-% --- Executes on button press in RxEllipDown.
-function RxEllipDown_Callback(hObject, eventdata, handles)
-% hObject    handle to RxEllipDown (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-RxAng = str2double(get(handles.RxAngleMan,'String')); 
-RxEllip = str2double(get(handles.RxEllipMan,'String')); 
-RxEllipInc = str2double(get(handles.RxEllipInc,'String')); 
-EllipLock = get(handles.EllipLockMan,'Value');
-
-RxEllip = RxEllip - RxEllipInc;
-if (RxEllip < -45)
-    RxEllip = RxEllip + 90;
-end
-handles.RxEllipticityFloat = RxEllip;
-set(handles.RxEllipMan,'String',RxEllip);
-set(handles.RxEllipticity,'String',round(RxEllip));
-PlotPolEllipse(handles.RxPlot,RxAng,RxEllip);
-
-if (EllipLock)
-    TxAng = str2double(get(handles.TxAngleMan,'String')); 
-    TxEllip = str2double(get(handles.TxEllipMan,'String')); 
-    TxEllip = TxEllip - RxEllipInc;
-    if (TxEllip < -45)
-        TxEllip = TxEllip + 90;
-    end
-    handles.TxEllipFloat = TxEllip;
-    set(handles.TxEllipMan,'String',TxEllip);
-    set(handles.TxEllipticity,'String',round(TxEllip));
-    PlotPolEllipse(handles.TxPlot,TxAng,TxEllip);
-end
-
-UpdateImage(handles);
-
-
-function RxEllipInc_Callback(hObject, eventdata, handles)
-% hObject    handle to RxEllipInc (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hints: get(hObject,'String') returns contents of RxEllipInc as text
-%        str2double(get(hObject,'String')) returns contents of RxEllipInc as a double
-
-
-% --- Executes during object creation, after setting all properties.
-function RxEllipInc_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to RxEllipInc (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-% Hint: edit controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
 
 
 function TxAngleMan_Callback(hObject, eventdata, handles)
@@ -1607,77 +1193,6 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
 end
 
 
-% --- Executes on button press in TxAngleUp.
-function TxAngleUp_Callback(hObject, eventdata, handles)
-% hObject    handle to TxAngleUp (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-TxAng = str2double(get(handles.TxAngleMan,'String')); 
-TxEllip = str2double(get(handles.TxEllipMan,'String')); 
-TxAngleInc = str2double(get(handles.TxAngleInc,'String')); 
-AngleLock = get(handles.AngleLockMan,'Value');
-
-TxAng = TxAng + TxAngleInc;
-if (TxAng > 360)
-    TxAng = TxAng - 360;
-end
-handles.TxAngleFloat = TxAng;
-set(handles.TxAngleMan,'String',TxAng);
-set(handles.TxAngle,'String',round(TxAng));
-PlotPolEllipse(handles.TxPlot,TxAng,TxEllip);
-
-if (AngleLock)
-    RxAng = str2double(get(handles.RxAngleMan,'String')); 
-    RxEllip = str2double(get(handles.RxEllipMan,'String')); 
-    RxAng = RxAng + TxAngleInc;
-    if (RxAng > 360)
-        RxAng = RxAng - 360;
-    end
-    handles.RxAngleFloat = RxAng;
-    set(handles.RxAngleMan,'String',RxAng);
-    set(handles.RxAngle,'String',round(RxAng));
-    PlotPolEllipse(handles.RxPlot,RxAng,RxEllip);
-end
-
-UpdateImage(handles);
-
-
-% --- Executes on button press in TxAngleDown.
-function TxAngleDown_Callback(hObject, eventdata, handles)
-% hObject    handle to TxAngleDown (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-TxAng = str2double(get(handles.TxAngleMan,'String')); 
-TxEllip = str2double(get(handles.TxEllipMan,'String')); 
-TxAngleInc = str2double(get(handles.TxAngleInc,'String')); 
-AngleLock = get(handles.AngleLockMan,'Value');
-
-TxAng = TxAng - TxAngleInc;
-if (TxAng < 0)
-    TxAng = TxAng + 360;
-end
-handles.TxAngleFloat = TxAng;
-set(handles.TxAngleMan,'String',TxAng);
-set(handles.TxAngle,'String',round(TxAng));
-PlotPolEllipse(handles.TxPlot,TxAng,TxEllip);
-
-if (AngleLock)
-    RxAng = str2double(get(handles.RxAngleMan,'String')); 
-    RxEllip = str2double(get(handles.RxEllipMan,'String')); 
-    RxAng = RxAng - TxAngleInc;
-    if (RxAng < 0)
-        RxAng = RxAng + 360;
-    end
-    handles.RxAngleFloat = RxAng;
-    set(handles.RxAngleMan,'String',RxAng);
-    set(handles.RxAngle,'String',round(RxAng));
-    PlotPolEllipse(handles.RxPlot,RxAng,RxEllip);
-end
-
-UpdateImage(handles);
-
 
 function TxAngleInc_Callback(hObject, eventdata, handles)
 % hObject    handle to TxAngleInc (see GCBO)
@@ -1701,6 +1216,50 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
 end
 
 
+% --- Executes on button press in TxAngleUp.
+function TxAngleUp_Callback(hObject, eventdata, handles)
+% hObject    handle to TxAngleUp (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+TxAngle = str2double(get(handles.TxAngleMan,'String'));
+TxInc = str2double(get(handles.TxAngleInc,'String'));
+
+TxAngle = TxAngle+TxInc;
+if TxAngle > 360; TxAngle = TxAngle-360; end
+
+set(handles.TxAngleMan,'String',round(TxAngle));
+set(handles.TxAngle,'String',round(TxAngle));
+
+PlotPolEllipse(handles.TxPlot,1,handles);
+
+handles = UpdateImage(handles);
+
+% Update handles structure
+guidata(hObject, handles);
+
+% --- Executes on button press in TxAngleDown.
+function TxAngleDown_Callback(hObject, eventdata, handles)
+% hObject    handle to TxAngleDown (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+TxAngle = str2double(get(handles.TxAngleMan,'String'));
+TxInc = str2double(get(handles.TxAngleInc,'String'));
+
+TxAngle = TxAngle-TxInc;
+if TxAngle < 0; TxAngle = TxAngle+360; end
+
+set(handles.TxAngleMan,'String',round(TxAngle));
+set(handles.TxAngle,'String',round(TxAngle));
+
+PlotPolEllipse(handles.TxPlot,1,handles);
+
+handles = UpdateImage(handles);
+
+% Update handles structure
+guidata(hObject, handles);
+
 function TxEllipMan_Callback(hObject, eventdata, handles)
 % hObject    handle to TxEllipMan (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -1722,77 +1281,6 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
     set(hObject,'BackgroundColor','white');
 end
 
-
-% --- Executes on button press in TxEllipUp.
-function TxEllipUp_Callback(hObject, eventdata, handles)
-% hObject    handle to TxEllipUp (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-TxAng = str2double(get(handles.TxAngleMan,'String')); 
-TxEllip = str2double(get(handles.TxEllipMan,'String')); 
-TxEllipInc = str2double(get(handles.TxEllipInc,'String')); 
-EllipLock = get(handles.EllipLockMan,'Value');
-
-TxEllip = TxEllip + TxEllipInc;
-if (TxEllip > 45)
-    TxEllip = TxEllip - 90;
-end
-handles.TxEllipticityFloat = TxEllip;
-set(handles.TxEllipMan,'String',TxEllip);
-set(handles.TxEllipticity,'String',round(TxEllip));
-PlotPolEllipse(handles.TxPlot,TxAng,TxEllip);
-
-if (EllipLock)
-    RxAng = str2double(get(handles.RxAngleMan,'String')); 
-    RxEllip = str2double(get(handles.RxEllipMan,'String')); 
-    RxEllip = RxEllip + TxEllipInc;
-    if (RxEllip > 45)
-        RxEllip = RxEllip - 90;
-    end
-    handles.RxEllipFloat = RxEllip;
-    set(handles.RxEllipMan,'String',RxEllip);
-    set(handles.RxEllipticity,'String',round(RxEllip));
-    PlotPolEllipse(handles.RxPlot,RxAng,RxEllip);
-end
-
-UpdateImage(handles);
-
-
-% --- Executes on button press in TxEllipDown.
-function TxEllipDown_Callback(hObject, eventdata, handles)
-% hObject    handle to TxEllipDown (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-TxAng = str2double(get(handles.TxAngleMan,'String')); 
-TxEllip = str2double(get(handles.TxEllipMan,'String')); 
-TxEllipInc = str2double(get(handles.TxEllipInc,'String')); 
-EllipLock = get(handles.EllipLockMan,'Value');
-
-TxEllip = TxEllip - TxEllipInc;
-if (TxEllip < -45)
-    TxEllip = TxEllip + 90;
-end
-handles.TxEllipticityFloat = TxEllip;
-set(handles.TxEllipMan,'String',TxEllip);
-set(handles.TxEllipticity,'String',round(TxEllip));
-PlotPolEllipse(handles.TxPlot,TxAng,TxEllip);
-
-if (EllipLock)
-    RxAng = str2double(get(handles.RxAngleMan,'String')); 
-    RxEllip = str2double(get(handles.RxEllipMan,'String')); 
-    RxEllip = RxEllip - TxEllipInc;
-    if (RxEllip < -45)
-        RxEllip = RxEllip + 90;
-    end
-    handles.RxEllipFloat = RxEllip;
-    set(handles.RxEllipMan,'String',RxEllip);
-    set(handles.RxEllipticity,'String',round(RxEllip));
-    PlotPolEllipse(handles.RxPlot,RxAng,RxEllip);
-end
-
-UpdateImage(handles);
 
 
 function TxEllipInc_Callback(hObject, eventdata, handles)
@@ -1817,18 +1305,108 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
 end
 
 
-function ImageName_Callback(hObject, eventdata, handles)
-% hObject    handle to ImageName (see GCBO)
+% --- Executes on button press in TxEllipUp.
+function TxEllipUp_Callback(hObject, eventdata, handles)
+% hObject    handle to TxEllipUp (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-% Hints: get(hObject,'String') returns contents of ImageName as text
-%        str2double(get(hObject,'String')) returns contents of ImageName as a double
+TxEllip = str2double(get(handles.TxEllipMan,'String'));
+TxInc = str2double(get(handles.TxEllipInc,'String'));
+
+TxEllip = TxEllip+TxInc;
+if TxEllip > 45; TxEllip = TxEllip-90; end
+
+set(handles.TxEllipMan,'String',round(TxEllip));
+set(handles.TxEllipticity,'String',round(TxEllip));
+
+PlotPolEllipse(handles.TxPlot,1,handles);
+
+handles = UpdateImage(handles);
+
+% Update handles structure
+guidata(hObject, handles);
+
+
+% --- Executes on button press in TxEllipDown.
+function TxEllipDown_Callback(hObject, eventdata, handles)
+% hObject    handle to TxEllipDown (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+TxEllip = str2double(get(handles.TxEllipMan,'String'));
+TxInc = str2double(get(handles.TxEllipInc,'String'));
+
+TxEllip = TxEllip-TxInc;
+if TxEllip < -45; TxEllip = TxEllip+90; end
+
+set(handles.TxEllipMan,'String',round(TxEllip));
+set(handles.TxEllipticity,'String',round(TxEllip));
+
+PlotPolEllipse(handles.TxPlot,1,handles);
+
+handles = UpdateImage(handles);
+
+% Update handles structure
+guidata(hObject, handles);
+
+% --- Executes on button press in RxEllipDown.
+function RxEllipDown_Callback(hObject, eventdata, handles)
+% hObject    handle to RxEllipDown (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+RxEllip = str2double(get(handles.RxEllipMan,'String'));
+RxInc = str2double(get(handles.RxEllipInc,'String'));
+
+RxEllip = RxEllip-RxInc;
+if RxEllip < -45; RxEllip = RxEllip+90; end
+
+set(handles.RxEllipMan,'String',round(RxEllip));
+set(handles.RxEllipticity,'String',round(RxEllip));
+
+PlotPolEllipse(handles.RxPlot,0,handles);
+
+handles = UpdateImage(handles);
+
+% Update handles structure
+guidata(hObject, handles);
+
+% --- Executes on button press in RxEllipUp.
+function RxEllipUp_Callback(hObject, eventdata, handles)
+% hObject    handle to RxEllipUp (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+RxEllip = str2double(get(handles.RxEllipMan,'String'));
+RxInc = str2double(get(handles.RxEllipInc,'String'));
+
+RxEllip = RxEllip+RxInc;
+if RxEllip > 45; RxEllip = RxEllip-90; end
+
+set(handles.RxEllipMan,'String',round(RxEllip));
+set(handles.RxEllipticity,'String',round(RxEllip));
+
+PlotPolEllipse(handles.RxPlot,0,handles);
+
+handles = UpdateImage(handles);
+
+% Update handles structure
+guidata(hObject, handles);
+
+
+function RxEllipInc_Callback(hObject, eventdata, handles)
+% hObject    handle to RxEllipInc (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of RxEllipInc as text
+%        str2double(get(hObject,'String')) returns contents of RxEllipInc as a double
 
 
 % --- Executes during object creation, after setting all properties.
-function ImageName_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to ImageName (see GCBO)
+function RxEllipInc_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to RxEllipInc (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    empty - handles not created until after all CreateFcns called
 
@@ -1839,40 +1417,118 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
 end
 
 
-% --- Executes on button press in BrowseImage.
-function BrowseImage_Callback(hObject, eventdata, handles)
-% hObject    handle to BrowseImage (see GCBO)
+
+function RxEllipMan_Callback(hObject, eventdata, handles)
+% hObject    handle to RxEllipMan (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-%get selection and launch appropriate file dialog
-%load last path
-if ispref('matlab_sar_toolbox','last_used_directory')
-    pathstr = getpref('matlab_sar_toolbox','last_used_directory');
-    if ~ischar(pathstr)||~exist(pathstr,'dir')
-        pathstr = pwd;
-    end
-else
-    pathstr = pwd;
+% Hints: get(hObject,'String') returns contents of RxEllipMan as text
+%        str2double(get(hObject,'String')) returns contents of RxEllipMan as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function RxEllipMan_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to RxEllipMan (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
 end
 
-[fname, path] = uiputfile( {'*.jpg','jpg Files (*.jpg)'},'Save JPG File',pathstr);
 
-setpref('matlab_sar_toolbox','last_used_directory',path); %store path
-
-set(handles.ImageName,'String',strcat(path,fname));
-set(handles.SaveImage,'Enable','on');
-
-
-% --- Executes on button press in SaveImage.
-function SaveImage_Callback(hObject, eventdata, handles)
-% hObject    handle to SaveImage (see GCBO)
+% --- Executes on button press in RxAngleDown.
+function RxAngleDown_Callback(hObject, eventdata, handles)
+% hObject    handle to RxAngleDown (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-F = getframe( handles.mitm_hand.AxesHandle );
-imwrite(F.cdata,get(handles.ImageName,'String'),'jpg');   
-msgbox('Image Saved');
+RxAngle = str2double(get(handles.RxAngleMan,'String'));
+RxInc = str2double(get(handles.RxAngleInc,'String'));
+
+RxAngle = RxAngle-RxInc;
+if RxAngle < 0; RxAngle = RxAngle+360; end
+
+set(handles.RxAngleMan,'String',round(RxAngle));
+set(handles.RxAngle,'String',round(RxAngle));
+
+PlotPolEllipse(handles.RxPlot,0,handles);
+
+handles = UpdateImage(handles);
+
+% Update handles structure
+guidata(hObject, handles);
+
+% --- Executes on button press in RxAngleUp.
+function RxAngleUp_Callback(hObject, eventdata, handles)
+% hObject    handle to RxAngleUp (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+RxAngle = str2double(get(handles.RxAngleMan,'String'));
+RxInc = str2double(get(handles.RxAngleInc,'String'));
+
+RxAngle = RxAngle+RxInc;
+if RxAngle > 360; RxAngle = RxAngle-360; end
+
+set(handles.RxAngleMan,'String',round(RxAngle));
+set(handles.RxAngle,'String',round(RxAngle));
+
+PlotPolEllipse(handles.RxPlot,0,handles);
+
+handles = UpdateImage(handles);
+
+% Update handles structure
+guidata(hObject, handles);
+
+
+function RxAngleInc_Callback(hObject, eventdata, handles)
+% hObject    handle to RxAngleInc (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of RxAngleInc as text
+%        str2double(get(hObject,'String')) returns contents of RxAngleInc as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function RxAngleInc_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to RxAngleInc (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+
+function RxAngleMan_Callback(hObject, eventdata, handles)
+% hObject    handle to RxAngleMan (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of RxAngleMan as text
+%        str2double(get(hObject,'String')) returns contents of RxAngleMan as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function RxAngleMan_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to RxAngleMan (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
 
 
 function MovieName_Callback(hObject, eventdata, handles)
@@ -1903,8 +1559,6 @@ function BrowseMovie_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-%get selection and launch appropriate file dialog
-%load last path
 if ispref('matlab_sar_toolbox','last_used_directory')
     pathstr = getpref('matlab_sar_toolbox','last_used_directory');
     if ~ischar(pathstr)||~exist(pathstr,'dir')
@@ -1914,13 +1568,93 @@ else
     pathstr = pwd;
 end
 
-[fname, path] = uiputfile( {'*.avi','AVI Files (*.avi)'},'Save AVI File',pathstr);
+[fname, path] = uiputfile( {'*.gif','GIF Files (*.gif)'},'Save Animated GIF',pathstr);
 
 setpref('matlab_sar_toolbox','last_used_directory',path); %store path
 
 set(handles.MovieName,'String',strcat(path,fname));
 set(handles.StartMovie,'Enable','on');
 
+
+% --- Executes on button press in SnapImage.
+function SnapImage_Callback(hObject, eventdata, handles)
+% hObject    handle to SnapImage (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+F = getframe(handles.mitm_hand.AxesHandle );
+dirname = fileparts(handles.mitm_hand.Filename{1});
+outfile = uiputfile('*.jpg','Save Image Snap',dirname);
+imwrite(F.cdata,[dirname filesep outfile],'jpg');   
+msgbox('Image Saved');
+
+% --- Executes on button press in StartMovie.
+function StartMovie_Callback(hObject, eventdata, handles)
+% hObject    handle to StartMovie (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+%we'll just store the Pol values and zoom/contrast/color params and then
+%create the movie 
+handles.movieparams = [];
+
+%set avi recording flag
+handles.movieflag = 1;
+
+set(handles.StartMovie,'Enable','off');
+set(handles.StopMovie,'Enable','on');
+
+% Update handles structure
+guidata(hObject, handles);
+
+% --- Executes on button press in StopMovie.
+function StopMovie_Callback(hObject, eventdata, handles)
+% hObject    handle to StopMovie (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+
+handles.movieflag = 0;
+
+set(handles.StartMovie,'Enable','off');
+set(handles.StopMovie,'Enable','off');
+
+framerate = str2double(get(handles.FrameRate,'String'));
+moviename = get(handles.MovieName,'String');
+
+numframes = length(handles.movieparams);
+set(handles.TotFrames,'String',numframes);
+
+for i=1:numframes
+    set(handles.TxAngle,'String',round(handles.movieparams(i).TxAngle));
+    set(handles.RxAngle,'String',round(handles.movieparams(i).RxAngle));
+    set(handles.TxEllipticity,'String',round(handles.movieparams(i).TxEllip));
+    set(handles.RxEllipticity,'String',round(handles.movieparams(i).RxEllip));
+    set(handles.Color,'Value',handles.movieparams(i).Color);
+    UpdateImage(handles);
+    PlotPolEllipse(handles.RxPlot,0,handles);
+    PlotPolEllipse(handles.TxPlot,1,handles);
+    F = getframe(handles.mitm_hand.AxesHandle);
+    if i==1
+        [X,map] = rgb2ind(F.cdata,256);
+        imwrite(X,map,moviename,'gif','LoopCount',Inf,'DelayTime',1/framerate);
+    else
+        X = rgb2ind(F.cdata,map);
+        imwrite(X,map,moviename,'gif','WriteMode','append','DelayTime',1/framerate);
+    end
+       
+    %update status on GUI
+    set(handles.CurFrame,'String',i);
+end
+
+set(handles.TotFrames,'String','');
+set(handles.CurFrame,'String','');
+
+set(handles.StartMovie,'Enable','on');
+set(handles.StopMovie,'Enable','off');
+
+% Update handles structure
+guidata(hObject, handles);
 
 function FrameRate_Callback(hObject, eventdata, handles)
 % hObject    handle to FrameRate (see GCBO)
@@ -1943,81 +1677,6 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
     set(hObject,'BackgroundColor','white');
 end
 
-
-% --- Executes on button press in StartMovie.
-function StartMovie_Callback(hObject, eventdata, handles)
-% hObject    handle to StartMovie (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-%we'll just store the Pol values and zoom/contrast/color params and then
-%create the movie 
-handles.aviparams = [];
-
-%set avi recording flag
-handles.aviflag = 1;
-
-set(handles.StartMovie,'Enable','off');
-set(handles.StopMovie,'Enable','on');
-
-% Update handles structure
-guidata(hObject, handles);
-
-
-% --- Executes on button press in StopMovie.
-function StopMovie_Callback(hObject, eventdata, handles)
-% hObject    handle to StopMovie (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-handles.aviflag = 0;
-
-set(handles.StartMovie,'Enable','off');
-set(handles.StopMovie,'Enable','off');
-
-%open avi
-framerate = str2double(get(handles.FrameRate,'String'));
-avifilename = get(handles.MovieName,'String');
-mov = avifile( avifilename, 'compression', 'none', 'fps', framerate );
-
-numframes = length(handles.aviparams);
-set(handles.TotFrames,'String',numframes);
-
-for i=1:numframes
-    set(handles.TxAngle,'String',round(handles.aviparams(i).TxAngle));
-    set(handles.RxAngle,'String',round(handles.aviparams(i).RxAngle));
-    set(handles.TxAngleMan,'String',handles.aviparams(i).TxAngle);
-    set(handles.RxAngleMan,'String',handles.aviparams(i).RxAngle);
-    set(handles.TxEllipticity,'String',round(handles.aviparams(i).TxEllip));
-    set(handles.RxEllipticity,'String',round(handles.aviparams(i).RxEllip));
-    set(handles.TxEllipMan,'String',handles.aviparams(i).TxEllip);
-    set(handles.RxEllipMan,'String',handles.aviparams(i).RxEllip);
-    handles.TxAngleFloat = handles.aviparams(i).TxAngle;
-    handles.RxAngleFloat = handles.aviparams(i).RxAngle;
-    handles.TxEllipticityFloat = handles.aviparams(i).TxEllip;
-    handles.RxEllipticityFloat = handles.aviparams(i).RxEllip;
-    set(handles.Color,'Value',handles.aviparams(i).Color);
-    UpdateImage(handles);
-    PlotPolEllipse(handles.RxPlot,handles.aviparams(i).RxAngle,...
-                   handles.aviparams(i).RxEllip);
-    PlotPolEllipse(handles.TxPlot,handles.aviparams(i).TxAngle,...
-                   handles.aviparams(i).TxEllip);
-    F = getframe( handles.mitm_hand.AxesHandle );
-    mov = addframe( mov, F );
-    %update status on GUI
-    set(handles.CurFrame,'String',i);
-end
-
-mov = close(mov);
-
-set(handles.TotFrames,'String','');
-set(handles.CurFrame,'String','');
-
-set(handles.StartMovie,'Enable','on');
-set(handles.StopMovie,'Enable','off');
-
-% Update handles structure
-guidata(hObject, handles);
 
 
 function CurFrame_Callback(hObject, eventdata, handles)
@@ -2042,12 +1701,6 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
 end
 
 
-% --- Executes during object creation, after setting all properties.
-function StopMovie_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to StopMovie (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
 
 function TotFrames_Callback(hObject, eventdata, handles)
 % hObject    handle to TotFrames (see GCBO)
@@ -2058,12 +1711,340 @@ function TotFrames_Callback(hObject, eventdata, handles)
 %        str2double(get(hObject,'String')) returns contents of TotFrames as a double
 
 
+% --- Executes during object creation, after setting all properties.
+function TotFrames_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to TotFrames (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on selection change in DecompCombo.
+function DecompCombo_Callback(hObject, eventdata, handles)
+% hObject    handle to DecompCombo (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns DecompCombo contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from DecompCombo
+
+
+% --- Executes during object creation, after setting all properties.
+function DecompCombo_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to DecompCombo (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: popupmenu controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on button press in RunDecomp.
+function RunDecomp_Callback(hObject, eventdata, handles)
+% hObject    handle to RunDecomp (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+%put in zeros for any pols that have no data associated with them
+data_size = size(handles.mitm_hand.ComplexData);
+data_size = data_size([1 2]);
+
+if strcmp(handles.TxPol,'HV') || strcmp(handles.TxPol,'VH')
+    HHData = single(handles.mitm_hand.ComplexData(:,:,handles.HH));
+    HVData = single(handles.mitm_hand.ComplexData(:,:,handles.HV));
+    VHData = single(handles.mitm_hand.ComplexData(:,:,handles.VH));
+    VVData = single(handles.mitm_hand.ComplexData(:,:,handles.VV));
+elseif strcmp(handles.TxPol,'H')
+    HHData = single(handles.mitm_hand.ComplexData(:,:,handles.HH));
+    HVData = single(handles.mitm_hand.ComplexData(:,:,handles.HV));
+    VHData = zeros(data_size);
+    VVData = zeros(data_size);
+elseif strcmp(handles.TxPol,'V')
+    VHData = single(handles.mitm_hand.ComplexData(:,:,handles.VH));
+    VVData = single(handles.mitm_hand.ComplexData(:,:,handles.VV));
+    HHData = zeros(data_size);
+    HVData = zeros(data_size);
+elseif strcmp(handles.TxPol,'RHC') || strcmp(handles.TxPol,'LHC')
+    VHData = single(handles.mitm_hand.ComplexData(:,:,handles.VH));
+    VVData = single(handles.mitm_hand.ComplexData(:,:,handles.VV));
+    HHData = zeros(data_size);
+    HVData = zeros(data_size);
+end
+
+%run decomposition from list
+%get name of function to call
+decompindex = get(handles.DecompCombo,'Value');
+decompstrings = get(handles.DecompCombo,'String');
+decomp = decompstrings(decompindex);
+
+%determine if this is a matlab file or a decomp file (decomp file has
+%extension)
+if (isempty(strfind(decomp{1},'.decomp')))
+    RGBData = feval(decomp{1}, HHData, HVData, VHData, VVData);
+else
+    pathstr = fileparts(which('PolTool'));
+    DecompDir = [pathstr filesep 'Decompositions' filesep];
+
+    RGBData = CreateDecomp([DecompDir decomp{1}], HHData, HVData, VHData, VVData);
+end
+
+if isdeployed
+    %imtool does not work in compiled Matlab
+    figure;
+    imagesc(RGBData);
+    set(gca,'XTick',[]);
+    set(gca,'YTick',[]);
+else
+    imtool(RGBData);
+end
+
+
+
+function RedString_Callback(hObject, eventdata, handles)
+% hObject    handle to RedString (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of RedString as text
+%        str2double(get(hObject,'String')) returns contents of RedString as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function RedString_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to RedString (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on button press in SetRed.
+function SetRed_Callback(hObject, eventdata, handles)
+% hObject    handle to SetRed (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+handles.RedTxAngle = str2double(get(handles.TxAngle,'String'));
+handles.RedTxEllip = str2double(get(handles.TxEllipticity,'String'));
+handles.RedRxAngle = str2double(get(handles.RxAngle,'String'));
+handles.RedRxEllip = str2double(get(handles.RxEllipticity,'String'));
+
+PolString = sprintf('Tx: %d/%d, Rx: %d/%d',handles.RedTxAngle,...
+    handles.RedTxEllip,handles.RedRxAngle,handles.RedRxEllip);
+set(handles.RedString,'String',PolString);
+guidata(hObject, handles);
+
+function GreenString_Callback(hObject, eventdata, handles)
+% hObject    handle to GreenString (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of GreenString as text
+%        str2double(get(hObject,'String')) returns contents of GreenString as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function GreenString_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to GreenString (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on button press in SetGreen.
+function SetGreen_Callback(hObject, eventdata, handles)
+% hObject    handle to SetGreen (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+handles.GreenTxAngle = str2double(get(handles.TxAngle,'String'));
+handles.GreenTxEllip = str2double(get(handles.TxEllipticity,'String'));
+handles.GreenRxAngle = str2double(get(handles.RxAngle,'String'));
+handles.GreenRxEllip = str2double(get(handles.RxEllipticity,'String'));
+
+PolString = sprintf('Tx: %d/%d, Rx: %d/%d',handles.GreenTxAngle,...
+    handles.GreenTxEllip,handles.GreenRxAngle,handles.GreenRxEllip);
+set(handles.GreenString,'String',PolString);
+guidata(hObject, handles);
+
+function BlueString_Callback(hObject, eventdata, handles)
+% hObject    handle to BlueString (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of BlueString as text
+%        str2double(get(hObject,'String')) returns contents of BlueString as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function BlueString_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to BlueString (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on button press in SetBlue.
+function SetBlue_Callback(hObject, eventdata, handles)
+% hObject    handle to SetBlue (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+handles.BlueTxAngle = str2double(get(handles.TxAngle,'String'));
+handles.BlueTxEllip = str2double(get(handles.TxEllipticity,'String'));
+handles.BlueRxAngle = str2double(get(handles.RxAngle,'String'));
+handles.BlueRxEllip = str2double(get(handles.RxEllipticity,'String'));
+
+PolString = sprintf('Tx: %d/%d, Rx: %d/%d',handles.BlueTxAngle,...
+    handles.BlueTxEllip,handles.BlueRxAngle,handles.BlueRxEllip);
+set(handles.BlueString,'String',PolString);
+guidata(hObject, handles);
+
+
+% --- Executes on button press in Run.
+function Run_Callback(hObject, eventdata, handles)
+% hObject    handle to Run (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+%generate "custom" defined decomposition
+
+data = handles.mitm_hand.ComplexData;
+
+%Red Channel
+[coefs(1,1,handles.HH) coefs(1,1,handles.HV) ...
+    coefs(1,1,handles.VH) coefs(1,1,handles.VV)] = ...
+    ComputePolCoeff(handles.RedTxAngle,handles.RedRxAngle,...
+    handles.RedTxEllip,handles.RedRxEllip);
+% Apply coefficients
+RedData = abs(sum(bsxfun(@times,data,coefs),3));
+
+%Green Channel
+[coefs(1,1,handles.HH) coefs(1,1,handles.HV) ...
+    coefs(1,1,handles.VH) coefs(1,1,handles.VV)] = ...
+    ComputePolCoeff(handles.GreenTxAngle,handles.GreenRxAngle,...
+    handles.GreenTxEllip,handles.GreenRxEllip);
+% Apply coefficients
+GreenData = abs(sum(bsxfun(@times,data,coefs),3));
+
+%Blue Channel
+[coefs(1,1,handles.HH) coefs(1,1,handles.HV) ...
+    coefs(1,1,handles.VH) coefs(1,1,handles.VV)] = ...
+    ComputePolCoeff(handles.BlueTxAngle,handles.BlueRxAngle,...
+    handles.BlueTxEllip,handles.BlueRxEllip);
+% Apply coefficients
+BlueData = abs(sum(bsxfun(@times,data,coefs),3));
+
+%scale data to mean + 3*sigma 
+RedCutoff = mean(RedData(:)) + 3*std(RedData(:));
+GreenCutoff = mean(GreenData(:)) + 3*std(GreenData(:));
+BlueCutoff = mean(BlueData(:)) + 3*std(BlueData(:));
+
+RedData(RedData > RedCutoff) = RedCutoff;
+GreenData(GreenData > GreenCutoff) = GreenCutoff;
+BlueData(BlueData > BlueCutoff) = BlueCutoff;
+
+RedData = RedData./RedCutoff;
+GreenData = GreenData./GreenCutoff;
+BlueData = BlueData./BlueCutoff;
+
+RGBData(:,:,1) = RedData;
+RGBData(:,:,2) = GreenData;
+RGBData(:,:,3) = BlueData;
+
+if isdeployed
+    %imtool does not work in compiled Matlab
+    figure;
+    imagesc(RGBData);
+    set(gca,'XTick',[]);
+    set(gca,'YTick',[]);
+else
+    imtool(RGBData);
+end
+
+
+
+% --- Executes on button press in SaveDecomp.
+function SaveDecomp_Callback(hObject, eventdata, handles)
+% hObject    handle to SaveDecomp (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+[pathstr] = fileparts(which('PolTool'));
+DecompDir = sprintf('%s/Decompositions',pathstr);
+
+%get name of decomp
+[name pathstr] = uiputfile('*.decomp','Save Decomposition Settings',DecompDir);
+
+DecompName = strcat(pathstr,name);
+
+fid = fopen(DecompName,'w');
+
+fprintf(fid,'RedTxAngle = %d\n',handles.RedTxAngle);
+fprintf(fid,'RedTxEllip = %d\n',handles.RedTxEllip);
+fprintf(fid,'RedRxAngle = %d\n',handles.RedRxAngle);
+fprintf(fid,'RedRxEllip = %d\n\n',handles.RedRxEllip);
+
+fprintf(fid,'GreenTxAngle = %d\n',handles.GreenTxAngle);
+fprintf(fid,'GreenTxEllip = %d\n',handles.GreenTxEllip);
+fprintf(fid,'GreenRxAngle = %d\n',handles.GreenRxAngle);
+fprintf(fid,'GreenRxEllip = %d\n\n',handles.GreenRxEllip);
+
+fprintf(fid,'BlueTxAngle = %d\n',handles.BlueTxAngle);
+fprintf(fid,'BlueTxEllip = %d\n',handles.BlueTxEllip);
+fprintf(fid,'BlueRxAngle = %d\n',handles.BlueRxAngle);
+fprintf(fid,'BlueRxEllip = %d\n',handles.BlueRxEllip);
+
+fclose(fid);
+
+%update list box with new decomp file
+%populate decomp list (from Decompositions folder)
+[pathstr] = fileparts(which('PolTool'));
+SearchDir = sprintf('%s/Decompositions/*.m',pathstr);
+files = dir(SearchDir);
+NumMFiles = length(files);
+for i=1:NumMFiles
+    temp = files(i).name;
+    filestring{i} = temp(1:length(temp)-2);
+end
+
+SearchDir = sprintf('%s/Decompositions/*.decomp',pathstr);
+files = dir(SearchDir);
+NumDecompFiles = length(files);
+for i=(NumMFiles+1):(NumMFiles+NumDecompFiles)
+    filestring{i} = files(i-NumMFiles).name;    
+end
+
+set(handles.DecompCombo,'String',filestring);
+
+
 % --- Executes on button press in SelectPixel.
 function SelectPixel_Callback(hObject, eventdata, handles)
 % hObject    handle to SelectPixel (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-
 
 %determine what mode we're in
 label = get(handles.SelectPixel,'String');
@@ -2128,430 +2109,6 @@ else
     guidata(hObject, handles);
 end
 
-
-% --- Executes on button press in PlotResults.
-function PlotResults_Callback(hObject, eventdata, handles)
-% hObject    handle to PlotResults (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-AngRes = str2double(get(handles.AngRes,'String'));
-ylabels = -45:AngRes:45;
-xlabels = 0:AngRes:180;
-if get(handles.CoPolAngEllip,'Value') % Co-Pol Angle/Ellipse Plot
-    TxAngle = xlabels;
-    RxAngle = xlabels;
-    TxEllip = ylabels;
-    RxEllip = ylabels;
-    title_str = 'Co-Pol Angle/Ellipticity Plot';
-elseif (get(handles.CrossPolAngEllip,'Value')) % Cross-Pol Angle/Ellipse Plot
-    TxAngle = xlabels;
-    RxAngle = xlabels+90;
-    TxEllip = ylabels;
-    RxEllip = -ylabels;
-    title_str = 'Cross-Pol Angle/Ellipticity Plot';
-else % Rx - Angle/Ellip
-    TxAngle = ones(1,numel(xlabels))*handles.TxAngleFloat;
-    TxEllip = ones(1,numel(ylabels))*handles.TxEllipticityFloat;
-    RxAngle = xlabels;
-    RxEllip = ylabels;
-    title_str = 'Rx Angle/Ellipticity Plot';
-end
-coefs = zeros(1,size(handles.mitm_hand.ComplexData,3));
-data = zeros(numel(ylabels),numel(xlabels));
-cov_mat = get_aoi_covariance(handles);
-for i = 1:numel(ylabels)
-    for j = 1:numel(xlabels)
-        [coefs(handles.HH) coefs(handles.HV) ...
-            coefs(handles.VH) coefs(handles.VV)] = ...
-            ComputePolCoeff(TxAngle(j),RxAngle(j),TxEllip(i),RxEllip(i));
-        data(i,j) = abs(coefs*cov_mat*coefs');
-    end
-end
-figure;
-imagesc(xlabels,ylabels,data);
-xlabel('Angle (deg)');
-ylabel('Ellipticity (deg)');
-xlim(xlabels([1 end]));
-ylim(ylabels([1 end]));
-title(title_str);
-
-guidata(hObject, handles);
-
-
-% Get covariance from selected point or AOI
-function cov_mat = get_aoi_covariance(handles)
-if (handles.PointInImage == 1)
-    % Get position of point
-    pos = round(getPosition(handles.point));
-    % Create psuedo-covariance matrix for a single pixel.  Obviously a
-    % single value has no variance, but we assume a zero-mean for SAR data.
-    complex_data = single(squeeze(handles.mitm_hand.ComplexData(pos(2),pos(1),:)))';
-else % AOI
-    screen_coords = handles.rect.getPosition();
-    file_coords = handles.mitm_hand.axescoords2native(screen_coords(1:2));
-    file_coords(3:4) = screen_coords(3:4)/handles.mitm_hand.Zoom;
-    xmin = max(1,round(file_coords(1)));
-    xmax = round(file_coords(1)+file_coords(3));
-    ymin = max(1,round(file_coords(2)));
-    ymax = round(file_coords(2)+file_coords(4));
-    complex_data = handles.mitm_hand.readerobj{handles.mitm_hand.Frame}.read_chip...
-        ([xmin xmax],[ymin ymax]);
-    complex_data = single(complex_data); % Required for doing math on data
-    % Reshape data so that each column is a variable (polarimetric channel)
-    % and each row is an observation (pixel).
-    complex_data = reshape(complex_data,size(complex_data,1)*size(complex_data,2),size(complex_data,3));
-end
-% We do not demean here as some covariance computations would (like
-% MATLAB's COV function) since SAR data is assumed to be zero-mean.
-cov_mat = complex_data'*complex_data;
-
-
-function AngRes_Callback(hObject, eventdata, handles)
-% hObject    handle to AngRes (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hints: get(hObject,'String') returns contents of AngRes as text
-%        str2double(get(hObject,'String')) returns contents of AngRes as a double
-
-
-% --- Executes during object creation, after setting all properties.
-function AngRes_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to AngRes (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-% Hint: edit controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-
-% --- Executes during object creation, after setting all properties.
-function edit4_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to AngRes (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-% Hint: edit controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-% --- Executes on selection change in DecompList.
-function DecompList_Callback(hObject, eventdata, handles)
-% hObject    handle to DecompList (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hints: contents = cellstr(get(hObject,'String')) returns DecompList contents as cell array
-%        contents{get(hObject,'Value')} returns selected item from DecompList
-
-
-% --- Executes during object creation, after setting all properties.
-function DecompList_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to DecompList (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-% Hint: popupmenu controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-
-% --- Executes on button press in RunDecomp.
-function RunDecomp_Callback(hObject, eventdata, handles)
-% hObject    handle to RunDecomp (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-%put in zeros for any pols that have no data associated with them
-data_size = size(handles.mitm_hand.ComplexData);
-data_size = data_size([1 2]);
-if isempty(handles.HH)
-    HHData = zeros(data_size);
-else
-    HHData = single(handles.mitm_hand.ComplexData(:,:,handles.HH));
-end
-if isempty(handles.HV)
-    HVData = zeros(data_size);
-else
-    HVData = single(handles.mitm_hand.ComplexData(:,:,handles.HV));
-end
-if isempty(handles.VH)
-    VHData = zeros(data_size);
-else
-    VHData = single(handles.mitm_hand.ComplexData(:,:,handles.VH));
-end
-if isempty(handles.VV)
-    VVData = zeros(data_size);
-else
-    VVData = single(handles.mitm_hand.ComplexData(:,:,handles.VV));
-end
-
-%run decomposition from list
-%get name of function to call
-decompindex = get(handles.DecompList,'Value');
-decompstrings = get(handles.DecompList,'String');
-decomp = decompstrings(decompindex);
-
-%determine if this is a matlab file or a decomp file (decomp file has
-%extension)
-if (isempty(strfind(decomp{1},'.decomp')))
-    RGBData = feval(decomp{1}, HHData, HVData, VHData, VVData);
-else
-    RGBData = CreateDecomp(decomp{1}, HHData, HVData, VHData, VVData);
-end
-
-if isdeployed
-    %imtool does not work in compiled Matlab
-    figure;
-    imagesc(RGBData);
-    set(gca,'XTick',[]);
-    set(gca,'YTick',[]);
-else
-    imtool(RGBData);
-end
-
-
-function RedPol_Callback(hObject, eventdata, handles)
-% hObject    handle to RedPol (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hints: get(hObject,'String') returns contents of RedPol as text
-%        str2double(get(hObject,'String')) returns contents of RedPol as a double
-
-
-% --- Executes during object creation, after setting all properties.
-function RedPol_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to RedPol (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-% Hint: edit controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-
-% --- Executes on button press in SetRed.
-function SetRed_Callback(hObject, eventdata, handles)
-% hObject    handle to SetRed (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-handles.RedTxAngle = str2double(get(handles.TxAngle,'String'));
-handles.RedTxEllip = str2double(get(handles.TxEllipticity,'String'));
-handles.RedRxAngle = str2double(get(handles.RxAngle,'String'));
-handles.RedRxEllip = str2double(get(handles.RxEllipticity,'String'));
-
-PolString = sprintf('Tx: %d/%d, Rx: %d/%d',handles.RedTxAngle,...
-    handles.RedTxEllip,handles.RedRxAngle,handles.RedRxEllip);
-set(handles.RedPol,'String',PolString);
-guidata(hObject, handles);
-
-
-function GreenPol_Callback(hObject, eventdata, handles)
-% hObject    handle to GreenPol (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hints: get(hObject,'String') returns contents of GreenPol as text
-%        str2double(get(hObject,'String')) returns contents of GreenPol as a double
-
-
-% --- Executes during object creation, after setting all properties.
-function GreenPol_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to GreenPol (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-% Hint: edit controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-
-% --- Executes on button press in SetGreen.
-function SetGreen_Callback(hObject, eventdata, handles)
-% hObject    handle to SetGreen (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-handles.GreenTxAngle = str2double(get(handles.TxAngle,'String'));
-handles.GreenTxEllip = str2double(get(handles.TxEllipticity,'String'));
-handles.GreenRxAngle = str2double(get(handles.RxAngle,'String'));
-handles.GreenRxEllip = str2double(get(handles.RxEllipticity,'String'));
-
-PolString = sprintf('Tx: %d/%d, Rx: %d/%d',handles.GreenTxAngle,...
-    handles.GreenTxEllip,handles.GreenRxAngle,handles.GreenRxEllip);
-set(handles.GreenPol,'String',PolString);
-guidata(hObject, handles);
-
-
-function BluePol_Callback(hObject, eventdata, handles)
-% hObject    handle to BluePol (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hints: get(hObject,'String') returns contents of BluePol as text
-%        str2double(get(hObject,'String')) returns contents of BluePol as a double
-
-
-% --- Executes during object creation, after setting all properties.
-function BluePol_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to BluePol (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-% Hint: edit controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-
-% --- Executes on button press in SetBlue.
-function SetBlue_Callback(hObject, eventdata, handles)
-% hObject    handle to SetBlue (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-handles.BlueTxAngle = str2double(get(handles.TxAngle,'String'));
-handles.BlueTxEllip = str2double(get(handles.TxEllipticity,'String'));
-handles.BlueRxAngle = str2double(get(handles.RxAngle,'String'));
-handles.BlueRxEllip = str2double(get(handles.RxEllipticity,'String'));
-
-PolString = sprintf('Tx: %d/%d, Rx: %d/%d',handles.BlueTxAngle,...
-    handles.BlueTxEllip,handles.BlueRxAngle,handles.BlueRxEllip);
-set(handles.BluePol,'String',PolString);
-guidata(hObject, handles);
-
-
-% --- Executes on button press in Generate.
-function Generate_Callback(hObject, eventdata, handles)
-% hObject    handle to Generate (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-%generate "custom" defined decomposition
-
-data = handles.mitm_hand.ComplexData;
-
-%Red Channel
-[coefs(1,1,handles.HH) coefs(1,1,handles.HV) ...
-    coefs(1,1,handles.VH) coefs(1,1,handles.VV)] = ...
-    ComputePolCoeff(handles.RedTxAngle,handles.RedRxAngle,...
-    handles.RedTxEllip,handles.RedRxEllip);
-% Apply coefficients
-RedData = abs(sum(bsxfun(@times,data,coefs),3));
-
-%Green Channel
-[coefs(1,1,handles.HH) coefs(1,1,handles.HV) ...
-    coefs(1,1,handles.VH) coefs(1,1,handles.VV)] = ...
-    ComputePolCoeff(handles.GreenTxAngle,handles.GreenRxAngle,...
-    handles.GreenTxEllip,handles.GreenRxEllip);
-% Apply coefficients
-GreenData = abs(sum(bsxfun(@times,data,coefs),3));
-
-%Blue Channel
-[coefs(1,1,handles.HH) coefs(1,1,handles.HV) ...
-    coefs(1,1,handles.VH) coefs(1,1,handles.VV)] = ...
-    ComputePolCoeff(handles.BlueTxAngle,handles.BlueRxAngle,...
-    handles.BlueTxEllip,handles.BlueRxEllip);
-% Apply coefficients
-BlueData = abs(sum(bsxfun(@times,data,coefs),3));
-
-%scale data to mean + 3*sigma 
-RedCutoff = mean(RedData(:)) + 3*std(RedData(:));
-GreenCutoff = mean(GreenData(:)) + 3*std(GreenData(:));
-BlueCutoff = mean(BlueData(:)) + 3*std(BlueData(:));
-
-RedData(RedData > RedCutoff) = RedCutoff;
-GreenData(GreenData > GreenCutoff) = GreenCutoff;
-BlueData(BlueData > BlueCutoff) = BlueCutoff;
-
-RedData = RedData./RedCutoff;
-GreenData = GreenData./GreenCutoff;
-BlueData = BlueData./BlueCutoff;
-
-RGBData(:,:,1) = RedData;
-RGBData(:,:,2) = GreenData;
-RGBData(:,:,3) = BlueData;
-
-if isdeployed
-    %imtool does not work in compiled Matlab
-    figure;
-    imagesc(RGBData);
-    set(gca,'XTick',[]);
-    set(gca,'YTick',[]);
-else
-    imtool(RGBData);
-end
-
-
-% --- Executes on button press in SaveDecomp.
-function SaveDecomp_Callback(hObject, eventdata, handles)
-% hObject    handle to SaveDecomp (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-[pathstr] = fileparts(which('PolTool'));
-DecompDir = sprintf('%s/Decompositions',pathstr);
-
-%get name of decomp
-[name pathstr] = uiputfile('*.decomp','Save Decomposition Settings',DecompDir);
-
-DecompName = strcat(pathstr,name);
-
-fid = fopen(DecompName,'w');
-
-fprintf(fid,'RedTxAngle = %d\n',handles.RedTxAngle);
-fprintf(fid,'RedTxEllip = %d\n',handles.RedTxEllip);
-fprintf(fid,'RedRxAngle = %d\n',handles.RedRxAngle);
-fprintf(fid,'RedRxEllip = %d\n\n',handles.RedRxEllip);
-
-fprintf(fid,'GreenTxAngle = %d\n',handles.GreenTxAngle);
-fprintf(fid,'GreenTxEllip = %d\n',handles.GreenTxEllip);
-fprintf(fid,'GreenRxAngle = %d\n',handles.GreenRxAngle);
-fprintf(fid,'GreenRxEllip = %d\n\n',handles.GreenRxEllip);
-
-fprintf(fid,'BlueTxAngle = %d\n',handles.BlueTxAngle);
-fprintf(fid,'BlueTxEllip = %d\n',handles.BlueTxEllip);
-fprintf(fid,'BlueRxAngle = %d\n',handles.BlueRxAngle);
-fprintf(fid,'BlueRxEllip = %d\n',handles.BlueRxEllip);
-
-fclose(fid);
-
-%update list box with new decomp file
-%populate decomp list (from Decompositions folder)
-[pathstr] = fileparts(which('PolTool'));
-SearchDir = sprintf('%s/Decompositions/*.m',pathstr);
-files = dir(SearchDir);
-NumMFiles = length(files);
-for i=1:NumMFiles
-    temp = files(i).name;
-    filestring{i} = temp(1:length(temp)-2);
-end
-
-SearchDir = sprintf('%s/Decompositions/*.decomp',pathstr);
-files = dir(SearchDir);
-NumDecompFiles = length(files);
-for i=(NumMFiles+1):(NumMFiles+NumDecompFiles)
-    filestring{i} = files(i-NumMFiles).name;    
-end
-
-set(handles.DecompList,'String',filestring);
-
-
 % --- Executes on button press in SaveCov.
 function SaveCov_Callback(hObject, eventdata, handles)
 % hObject    handle to SaveCov (see GCBO)
@@ -2588,6 +2145,100 @@ for i=1:size(cov_mat,1)
 end
 fclose(fid);
 
-% //////////////////////////////////////////
-% /// CLASSIFICATION: UNCLASSIFIED       ///
-% //////////////////////////////////////////
+% --- Executes on button press in PlotResults.
+function PlotResults_Callback(hObject, eventdata, handles)
+% hObject    handle to PlotResults (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+AngRes = str2double(get(handles.AngleRes,'String'));
+ylabels = -45:AngRes:45;
+xlabels = 0:AngRes:180;
+if get(handles.CoAngleEllip,'Value') % Co-Pol Angle/Ellipse Plot
+    TxAngle = xlabels;
+    RxAngle = xlabels;
+    TxEllip = ylabels;
+    RxEllip = ylabels;
+    title_str = 'Co-Pol Angle/Ellipticity Plot';
+elseif (get(handles.CrossAngleEllip,'Value')) % Cross-Pol Angle/Ellipse Plot
+    TxAngle = xlabels;
+    RxAngle = xlabels+90;
+    TxEllip = ylabels;
+    RxEllip = -ylabels;
+    title_str = 'Cross-Pol Angle/Ellipticity Plot';
+else % Rx - Angle/Ellip
+    TxAngle = ones(1,numel(xlabels))*str2double(get(handles.TxAngle,'String'));
+    TxEllip = ones(1,numel(ylabels))*str2double(get(handles.TxEllipticity,'String'));
+    RxAngle = xlabels;
+    RxEllip = ylabels;
+    title_str = 'Rx Angle/Ellipticity Plot';
+end
+coefs = zeros(1,size(handles.mitm_hand.ComplexData,3));
+data = zeros(numel(ylabels),numel(xlabels));
+cov_mat = get_aoi_covariance(handles);
+for i = 1:numel(ylabels)
+    for j = 1:numel(xlabels)
+        [coefs(handles.HH) coefs(handles.HV) ...
+            coefs(handles.VH) coefs(handles.VV)] = ...
+            ComputePolCoeff(TxAngle(j),RxAngle(j),TxEllip(i),RxEllip(i));
+        data(i,j) = abs(coefs*cov_mat*coefs');
+    end
+end
+figure;
+imagesc(xlabels,ylabels,data);colormap(jet);
+xlabel('Angle (deg)');
+ylabel('Ellipticity (deg)');
+xlim(xlabels([1 end]));
+ylim(ylabels([1 end]));
+title(title_str);
+
+guidata(hObject, handles);
+
+% Get covariance from selected point or AOI
+function cov_mat = get_aoi_covariance(handles)
+if (handles.PointInImage == 1)
+    % Get position of point
+    pos = round(getPosition(handles.point));
+    % Create psuedo-covariance matrix for a single pixel.  Obviously a
+    % single value has no variance, but we assume a zero-mean for SAR data.
+    complex_data = single(squeeze(handles.mitm_hand.ComplexData(pos(2),pos(1),:)))';
+else % AOI
+    screen_coords = handles.rect.getPosition();
+    file_coords = handles.mitm_hand.axescoords2native(screen_coords(1:2));
+    file_coords(3:4) = screen_coords(3:4)/handles.mitm_hand.Zoom;
+    xmin = max(1,round(file_coords(1)));
+    xmax = round(file_coords(1)+file_coords(3));
+    ymin = max(1,round(file_coords(2)));
+    ymax = round(file_coords(2)+file_coords(4));
+    complex_data = handles.mitm_hand.readerobj{handles.mitm_hand.Frame}.read_chip...
+        ([xmin xmax],[ymin ymax]);
+    complex_data = single(complex_data); % Required for doing math on data
+    % Reshape data so that each column is a variable (polarimetric channel)
+    % and each row is an observation (pixel).
+    complex_data = reshape(complex_data,size(complex_data,1)*size(complex_data,2),size(complex_data,3));
+end
+% We do not demean here as some covariance computations would (like
+% MATLAB's COV function) since SAR data is assumed to be zero-mean.
+cov_mat = complex_data'*complex_data;
+
+
+function AngleRes_Callback(hObject, eventdata, handles)
+% hObject    handle to AngleRes (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of AngleRes as text
+%        str2double(get(hObject,'String')) returns contents of AngleRes as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function AngleRes_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to AngleRes (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
