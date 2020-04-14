@@ -7,7 +7,17 @@ function [ output_meta ] = meta2sicd_nisar( HDF5_fid )
 % Note that MATLAB's h5disp is generally a good tool for manually browsing
 % through HDF5 metadata like that found in NISAR format.
 %
-% Written by: Wade Schwartzkopf, NGA/R
+% Known issues with simulated NISAR data (from UAVSAR) to date:
+%
+% 1) ISCEVersion not populated
+% 2) Doppler rate provided is positive.  JPL says will it fix in future
+% update.
+% 3) processedAzimuthBandwidth is acknowledged by JPL to be wrong and will
+% be fixed in a future update.
+% 4) Weighting description is currently a placeholder, not an accurate
+% description of UAVSAR data used for simulated data foramt.
+%
+% Written by: Wade Schwartzkopf, NGA/Research
 %
 % //////////////////////////////////////////
 % /// CLASSIFICATION: UNCLASSIFIED       ///
@@ -90,14 +100,15 @@ output_meta.GeoData.SCP.ECF.Z=ecf(3);
 % output_meta.GeoData.ImageCorners.ICP.LRFC.Lon=bound_poly(4,2);
 
 %% Grid
-% TODO: Data, as read in provided simulated datasets, does not match predicted frequency bounds
 output_meta.Grid.ImagePlane='SLANT';
 output_meta.Grid.Type='RGZERO';
 output_meta.Grid.Row.Sgn=-1; % Always true for NISAR
 output_meta.Grid.Col.Sgn=-1; % Always true for NISAR
 output_meta.Grid.Col.KCtr=0;
 output_meta.Grid.Row.DeltaKCOAPoly=0;
-% Communications with JPL: All SLC data should be uniform weighting
+% TODO: JPL states that uniform weighting in data simulated from UAVSAR is
+% placeholder, not an accurate description of the data.  At this point, it
+% is not clear what the final weighting description for NISAR will be.
 output_meta.Grid.Row.WgtFunct = get_hdf_data(HDF5_fid,...
     '/science/LSAR/SLC/metadata/processingInformation/parameters','rangeChirpWeighting');
 if all(output_meta.Grid.Row.WgtFunct(1)==output_meta.Grid.Row.WgtFunct)
@@ -217,14 +228,14 @@ for i = 1:numel(cal_fields)
     fill = cast(fill,class(cal_data{i}));
     cal_data{i}(cal_data{i}==fill) = NaN;
     if any(diff(cal_data{i}(isfinite(cal_data{i}))))
+        % We expect NISAR to be constant beta, although simulated data from
+        % UAVSAR is constant sigma
         if strcmp(cal_fields{i},'beta0')
             warning('META2SICD_NISAR:unexpectedCalibrationValues',...
                 'Beta-0 values expected to be constant.');
         end
     else
-        % TODO: Validate conversion factor between NISAR cal fields and
-        % SICD cal fields. This assumes Sentinel-1 convention.
-        output_meta.Radiometric.(sicd_cal_fields{i}) = 1/mean(cal_data{i}(:),'omitnan')^2;
+        output_meta.Radiometric.(sicd_cal_fields{i}) = mean(cal_data{i}(:),'omitnan');
     end
     % We will derive non-constant Radiometric fields from the constant one
     % (likely beta).
@@ -299,6 +310,8 @@ for i=1:numel(freqs)
     range_id=H5D.open(freq_id,'slantRange');
     r_ca_sampled=H5D.read(range_id);
     H5D.close(range_id);
+    % TODO: processedAzimuthBandwidth acknowledged by JPL to be wrong in
+    % simulated datasets.
     dop_bw_id=H5D.open(freq_id,'processedAzimuthBandwidth');
     dop_bw=H5D.read(dop_bw_id);
     H5D.close(dop_bw_id);
@@ -399,10 +412,7 @@ for i=1:numel(freqs)
         % part of swath).  We also expect the values to be in dB, not
         % linear.
         nesz = get_hdf_data(HDF5_fid,['/science/LSAR/SLC/metadata/calibrationInformation/frequency' freqs(i) '/' pols{i}(j,:)], 'nes0').';
-        % TODO: Validate conversion factor between NISAR cal fields and
-        % SICD cal fields. This assumes Sentinel-1 convention (same as
-        % Radiometric fields in top part of this code.)
-        sigma0sf = 1./(cal_data{3}.^2);
+        sigma0sf = cal_data{3};
         noise_samples = nesz - (10*log10(sigma0sf));
         pol_meta.Radiometric.NoiseLevel.NoisePoly = ...
             polyfit2d(noise_samples, coords_az_m, coords_rg_m, POLY_ORDER);
