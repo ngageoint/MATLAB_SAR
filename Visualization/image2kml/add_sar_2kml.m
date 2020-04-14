@@ -227,20 +227,34 @@ if close_reader_object % After overlays we no longer need to read from file
     reader_obj.close();
 end
 
-if isfield(sicd_meta,'Timeline') && isfield(sicd_meta.Timeline,'CollectDuration')
-    % For now we approximate ARP/GRP paths as straight lines.  Later we can
-    % add more intermediate steps.
+% For now we approximate ARP/GRP paths as straight lines.  Later we can
+% add more intermediate steps.
+NUM_STEPS = 2;
+if isfield(sicd_meta,'ImageFormation') && ...
+        all(isfield(sicd_meta.ImageFormation, {'TStartProc','TEndProc'}))
+    times = linspace(sicd_meta.ImageFormation.TStartProc,sicd_meta.ImageFormation.TEndProc,2);
+elseif exist('vbmeta','var')
+    times = linspace(min(vbmeta.TxTime),max(vbmeta.TxTime),NUM_STEPS);
+elseif isfield(sicd_meta,'Timeline') && isfield(sicd_meta.Timeline,'CollectDuration')
     times = linspace(0,sicd_meta.Timeline.CollectDuration,2);
 else
     times = 0; % Just use center of aperture
 end
+if isfield(sicd_meta,'Grid') && isfield(sicd_meta.Grid,'TimeCOAPoly')
+    coatime = sicd_meta.Grid.TimeCOAPoly(1);
+elseif isfield(sicd_meta,'SCPCOA') && isfield(sicd_meta.SCPCOA,'SCPTime')
+    coatime = sicd_meta.SCPCOA.SCPTime;
+else
+    coatime = (times(1) + times(end))/2;
+end
     
 % Get ARP positions
 if isfield(sicd_meta,'Position') && isfield(sicd_meta.Position,'ARPPoly') && ...
-        any(times) % Need valid collection times for evaluating polynomial
-    ARPCOAX = polyval(sicd_meta.Position.ARPPoly.X(end:-1:1),times(end)/2);
-    ARPCOAY = polyval(sicd_meta.Position.ARPPoly.Y(end:-1:1),times(end)/2);
-    ARPCOAZ = polyval(sicd_meta.Position.ARPPoly.Z(end:-1:1),times(end)/2);
+        any(times) % Need valid collection times for evaluating polynomial        
+    ARPCOAX = polyval(sicd_meta.Position.ARPPoly.X(end:-1:1),coatime);
+    ARPCOAY = polyval(sicd_meta.Position.ARPPoly.Y(end:-1:1),coatime);
+    ARPCOAZ = polyval(sicd_meta.Position.ARPPoly.Z(end:-1:1),coatime);
+    
     ARPPosX = polyval(sicd_meta.Position.ARPPoly.X(end:-1:1),times);
     ARPPosY = polyval(sicd_meta.Position.ARPPoly.Y(end:-1:1),times);
     ARPPosZ = polyval(sicd_meta.Position.ARPPoly.Z(end:-1:1),times);
@@ -249,11 +263,11 @@ elseif isfield(sicd_meta,'SCPCOA') && isfield(sicd_meta.SCPCOA,'ARPPos')
     ARPCOAY = sicd_meta.SCPCOA.ARPPos.Y;
     ARPCOAZ = sicd_meta.SCPCOA.ARPPos.Z;
     if isfield(sicd_meta.SCPCOA,'ARPVel')
-        ARPPosX = sicd_meta.SCPCOA.ARPPos.X + [-1/2 1/2]*times(end)*...
+        ARPPosX = sicd_meta.SCPCOA.ARPPos.X + [-1/2 1/2]*(times(end)-times(1))*...
             sicd_meta.SCPCOA.ARPVel.X;
-        ARPPosY = sicd_meta.SCPCOA.ARPPos.Y + [-1/2 1/2]*times(end)*...
+        ARPPosY = sicd_meta.SCPCOA.ARPPos.Y + [-1/2 1/2]*(times(end)-times(1))*...
             sicd_meta.SCPCOA.ARPVel.Y;
-        ARPPosZ = sicd_meta.SCPCOA.ARPPos.Z + [-1/2 1/2]*times(end)*...
+        ARPPosZ = sicd_meta.SCPCOA.ARPPos.Z + [-1/2 1/2]*(times(end)-times(1))*...
             sicd_meta.SCPCOA.ARPVel.Z;
     end
 end
@@ -287,9 +301,9 @@ if isfield(sicd_meta,'Position') && isfield(sicd_meta.Position,'GRPPoly') && ...
         GRPPosX = polyval(sicd_meta.Position.GRPPoly.X(end:-1:1),times);
         GRPPosY = polyval(sicd_meta.Position.GRPPoly.Y(end:-1:1),times);
         GRPPosZ = polyval(sicd_meta.Position.GRPPoly.Z(end:-1:1),times);
-        GRPCOAX = polyval(sicd_meta.Position.GRPPoly.X(end:-1:1),times(end)/2);
-        GRPCOAY = polyval(sicd_meta.Position.GRPPoly.Y(end:-1:1),times(end)/2);
-        GRPCOAZ = polyval(sicd_meta.Position.GRPPoly.Z(end:-1:1),times(end)/2);
+        GRPCOAX = polyval(sicd_meta.Position.GRPPoly.X(end:-1:1),coatime);
+        GRPCOAY = polyval(sicd_meta.Position.GRPPoly.Y(end:-1:1),coatime);
+        GRPCOAZ = polyval(sicd_meta.Position.GRPPoly.Z(end:-1:1),coatime);
     end
     %convert to LLA
     for i=1:length(GRPPosX)
