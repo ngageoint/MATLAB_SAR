@@ -7,7 +7,7 @@ function boolout = iscphdx( filename )
 % /// CLASSIFICATION: UNCLASSIFIED       ///
 % //////////////////////////////////////////
 
-fid = fopen(filename,'r','b');
+fid = fopen(filename,'r','b','UTF-8');
 boolout = strncmp(fgets( fid, 20 )','CPHD/0.3',8);
 fclose(fid);
 

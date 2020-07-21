@@ -10,7 +10,7 @@ function [ readerobj ] = open_cphdx_reader( filename )
 % //////////////////////////////////////////
 
 %% File header
-fid = fopen(filename,'r','b'); % All CPHDX is big-endian
+fid = fopen(filename,'r','b','UTF-8'); % All CPHDX is big-endian
 file_header=read_cphdx_file_header(fid);
 
 %% XML metadata

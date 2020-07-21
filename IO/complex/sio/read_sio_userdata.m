@@ -10,7 +10,7 @@ function [ userdata_struct, userdata_length_in_bytes ] = read_sio_userdata( file
 % /// CLASSIFICATION: UNCLASSIFIED       ///
 % //////////////////////////////////////////
 
-fid = fopen(filename,'r',endian);
+fid = fopen(filename,'r',endian,'UTF-8');
 ihdr = fread(fid,6,'*uint32'); % Read SIO header
 userdata_length_in_bytes=4; % uint32 telling how many pairs of user data
 userdata_struct = struct();

@@ -10,7 +10,7 @@ function boolout = iscphd30( filename )
 boolout = false;
 if exist(filename,'file')==2
     % Do quick easy check first
-    fid = fopen(filename,'r','b');
+    fid = fopen(filename,'r','b','UTF-8');
     boolout = strncmp(fread( fid, 11, '*char' )','BegPreamble',11);
     fclose(fid);
     % Then check more thoroughly

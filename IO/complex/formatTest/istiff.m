@@ -7,7 +7,7 @@ function boolout = istiff(filename)
 % /// CLASSIFICATION: UNCLASSIFIED       ///
 % //////////////////////////////////////////
 
-fid = fopen(filename,'r'); 
+fid = fopen(filename,'r','b','US-ASCII'); 
 endianflag = fread(fid,2,'uchar=>char')'; % Big or little endian???
 if strcmp(endianflag,'II')
     endian='l';

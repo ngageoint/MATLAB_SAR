@@ -137,7 +137,7 @@ RECOGNIZED_TAGS = containers.Map(RECOGNIZED_TAG_KEYS, RECOGNIZED_TAG_VALUES);
 
 %% Read all TIFF metadata
 % Determine TIFF endianness
-fid = fopen(filename,'r');
+fid = fopen(filename,'r','b','US-ASCII');
 endian = fread(fid,2,'uint8=>char').';
 fclose(fid);
 switch endian
@@ -149,7 +149,9 @@ switch endian
         error('READ_TIFF_TAGS:UNRECOGNIZED_ENDIANNESS','TIFF endian values are limited to II or MM.');
 end
 % Read TIFF Image File Headers
-fid = fopen(filename,'r',endian); % Reopen file with correct endianness
+fid = fopen(filename,'r',endian,'UTF-8'); % Reopen file with correct endianness
+% Note: TIFF spec states ASCII, but occasionally some out-of-spec TIFFs
+% include UTF-encoded strings.  This should work for both.
 fseek(fid,2,'bof'); % Already read endianness, so we can now skip over it
 magicnumber = fread(fid,1,'int16'); % This value should be 42.
 next_ifd = fread(fid,1,'uint32'); % Pointer to next image file header
