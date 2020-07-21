@@ -95,17 +95,20 @@ readerobj={};
 for i=1:length(imageind)
     datasize=[native_metadata.imagesubhdr{i}.NCOLS native_metadata.imagesubhdr{i}.NROWS];
     datatype=nitf2matlab_datatype(native_metadata.imagesubhdr{i});
-    if native_metadata.imagesubhdr{i}.NBANDS==2
-        band_order=[native_metadata.imagesubhdr{i}.ISUBCAT1...
-            native_metadata.imagesubhdr{i}.ISUBCAT2];
-        if isempty(band_order)
+    if native_metadata.imagesubhdr{i}.NBANDS>1
+        band_order=[];
+        for j = 1:native_metadata.imagesubhdr{i}.NBANDS
+            band_order = [band_order native_metadata.imagesubhdr{i}.(['ISUBCAT' num2str(j)])];
+        end
+        if native_metadata.imagesubhdr{i}.NBANDS==2 && isempty(band_order)
             band_order = 'IQ'; % Default to this if no ISUBCAT given
         end
     end
     if native_metadata.imagesubhdr{i}.PVTYPE(1)~='C'&&... % Not complex
         native_metadata.imagesubhdr{i}.NBANDS==1
         complextype=0;
-    elseif native_metadata.imagesubhdr{i}.NBANDS==2&&strcmp(band_order,'IQ');
+    elseif native_metadata.imagesubhdr{i}.NBANDS>1&&...
+            all(band_order(1:2:end)=='I')&&all(band_order(2:2:end)=='Q')
         complextype=1;
     elseif native_metadata.imagesubhdr{i}.NBANDS==2&&...
             any(strcmp(band_order,{'MP','PM'}))
@@ -133,6 +136,7 @@ for i=1:length(imageind)
     end
     endian='b'; % NITF always big-endian
     
+    new_reader = {};
     if strcmpi(native_metadata.imagesubhdr{i}.IC,'C8')
         % J2K compressed files must be handled specially.  This is an UGLY
         % hack!  We save the J2K portion of the NITF to a standalone J2K
@@ -159,26 +163,35 @@ for i=1:length(imageind)
         % the file.  For this case, it refers to the order of the
         % dimensions in the MATLAB J2K API.
         datasize_sym = datasize;
-        if symmetry{i}(3), datasize_sym=datasize(end:-1:1); end;
+        if symmetry{i}(3), datasize_sym=datasize(end:-1:1); end
         meta{i}.native.j2k = imfinfo(int_filename);
         levels = meta{i}.native.j2k.WaveletDecompositionLevels;
-        readerobj{i}=chipfun2readerobj(@(varargin) ...
+        new_reader=chipfun2readerobj(@(varargin) ...
             j2k_chipper(int_filename, datasize, symmetry{i}, levels, varargin{:}), datasize_sym);
-        readerobj{i}.close = @() delete(int_filename); % We will delete the intermediate file when we are done
+        new_reader.close = @() delete(int_filename); % We will delete the intermediate file when we are done
     elseif (native_metadata.imagesubhdr{i}.IMODE=='P'&&...
             native_metadata.imagesubhdr{i}.NBPR==1)||...
             (native_metadata.imagesubhdr{i}.IMODE=='B'&&...
             native_metadata.imagesubhdr{i}.NBPR==1&&...
             native_metadata.imagesubhdr{i}.NBANDS==1)
-        readerobj{i}=open_generic_reader(filename, datasize,...
+        new_reader=open_generic_reader(filename, datasize,...
             datatype, complextype, data_offset(imageind(i)), endian, ...
             symmetry{i},1,datasize);
-    elseif any(native_metadata.imagesubhdr{i}.IMODE=='BP')&&...
+    elseif native_metadata.imagesubhdr{i}.IMODE=='B' &&...
             native_metadata.imagesubhdr{i}.NBANDS==1
         blocksize=[native_metadata.imagesubhdr{i}.NPPBH native_metadata.imagesubhdr{i}.NPPBV];
-        readerobj{i}=open_generic_reader(filename, datasize,...
+        new_reader=open_generic_reader(filename, datasize,...
             datatype, complextype, data_offset(imageind(i)), endian,...
             symmetry{i}, native_metadata.imagesubhdr{i}.NBANDS, blocksize);
+    elseif native_metadata.imagesubhdr{i}.IMODE=='P'
+        blocksize=[native_metadata.imagesubhdr{i}.NPPBH native_metadata.imagesubhdr{i}.NPPBV];
+        bands = native_metadata.imagesubhdr{i}.NBANDS;
+        if complextype && native_metadata.imagesubhdr{i}.PVTYPE(1)~='C'
+            bands = bands/2;
+        end
+        new_reader=open_generic_reader(filename, datasize,...
+            datatype, complextype, data_offset(imageind(i)), endian,...
+            symmetry{i}, bands, blocksize);
     elseif native_metadata.imagesubhdr{i}.IMODE=='S'||...
             (native_metadata.imagesubhdr{i}.IMODE=='B'&&...
             native_metadata.imagesubhdr{i}.NBPR==1) % Only multi-band IMODE=B, since single-band caught above
@@ -192,20 +205,21 @@ for i=1:length(imageind)
                 datatype, 0, data_offset(imageind(i))+band_offsets(j), endian, symmetry{i}, 1, blocksize);
         end
         [chipper_all_bands,close_all_bands]=build_mb_chipper(chipper_function, close_function, complextype);
-        if symmetry{i}(3), datasize=datasize(end:-1:1); end;
-        readerobj{i} = chipfun2readerobj(chipper_all_bands, datasize);
-        readerobj{i}.close=close_all_bands;
+        if symmetry{i}(3), datasize=datasize(end:-1:1); end
+        new_reader = chipfun2readerobj(chipper_all_bands, datasize);
+        new_reader.close=close_all_bands;
     % If all else fails resort to MATLAB's NITF reader
     elseif exist('nitfread') % Do we have the image processing toolbox?
-        readerobj{i} = chipfun2readerobj(@(varargin) ml_nitf_chipper(filename, datasize, complextype, symmetry{i}, i, varargin{:}), datasize);
-        readerobj{i}.close=@() 1; % Nothing to do
+        new_reader = chipfun2readerobj(@(varargin) ml_nitf_chipper(filename, datasize, complextype, symmetry{i}, i, varargin{:}), datasize);
+        new_reader.close=@() 1; % Nothing to do
     else
         error('OPEN_CNITF_READER:UNSUPPORTED_NITF_TYPE','Unsupported NITF type.');
     end
-    readerobj{i}.get_meta=@() meta{i};
+    new_reader.get_meta=@() meta{i};
+    readerobj{end+1} = new_reader;
 end
 
-if isscalar(imageind)
+if numel(readerobj)==1
     readerobj = readerobj{1};
 end
 
