@@ -73,7 +73,7 @@ meta=meta2sicd_rs_xml(domnode,betanode{:});
 
 %% Get all files from a polarimetric collect
 num_files=str2double(xp.evaluate(['count(' ipdf_str ')'],domnode));
-readerobj=cell(1,num_files);
+readerobj={};
 for i=1:num_files
     basepathname=fileparts(filename);
     datafilename=char(xp.evaluate([ipdf_str '[' num2str(i) ']'],domnode));
@@ -83,9 +83,11 @@ for i=1:num_files
     %                          '/*[local-name()=''productFormat'']']),...
     %                         domnode);
     % Return individual reader objects for each polarimetric channel
-    readerobj{i}=open_tiff_reader_noxml(fullfile(basepathname,datafilename),symmetry);
-    meta{i}.native.tiff=readerobj{i}.get_meta();
-    readerobj{i}.get_meta = @() meta{i};
+    if exist(fullfile(basepathname,datafilename),'file')
+        readerobj{end+1}=open_tiff_reader_noxml(fullfile(basepathname,datafilename),symmetry);
+        meta{i}.native.tiff=readerobj{end}.get_meta();
+        readerobj{end}.get_meta = @() meta{i};
+    end
 end
 end
 

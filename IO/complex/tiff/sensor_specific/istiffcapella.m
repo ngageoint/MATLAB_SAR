@@ -9,7 +9,7 @@ function [ boolout ] = istiffcapella( filename )
 
 
 tags = read_tiff_tags(filename);
-boolout = strncmpi(tags{1}.Software,'Capella',7);
+boolout = isfield(tags{1}, 'Software') && strncmpi(tags{1}.Software,'Capella',7);
 
 end
 
