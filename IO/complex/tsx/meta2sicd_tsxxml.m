@@ -251,7 +251,7 @@ if any(strncmpi(output_meta.CollectionInfo.RadarMode.ModeID,{'SL','HS'},2)) % SL
 else % SM (stripmap), SC (ScanSAR)
     output_meta.ImageFormation.STBeamComp='GLOBAL';
 end
-output_meta.ImageFormation.ImageBeamComp='NO';
+output_meta.ImageFormation.ImageBeamComp='SV';
 output_meta.ImageFormation.AzAutofocus='NO';
 output_meta.ImageFormation.RgAutofocus='NO';
 output_meta.RMA.RMAlgoType='OMEGA_K';

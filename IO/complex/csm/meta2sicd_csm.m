@@ -157,7 +157,7 @@ output_meta.ImageFormation.ImageFormAlgo='RMA';
 output_meta.ImageFormation.TStartProc=0;
 output_meta.ImageFormation.TEndProc=output_meta.Timeline.CollectDuration;
 output_meta.ImageFormation.STBeamComp='SV';
-output_meta.ImageFormation.ImageBeamComp='NO';
+output_meta.ImageFormation.ImageBeamComp='SV';
 output_meta.ImageFormation.AzAutofocus='NO';
 output_meta.ImageFormation.RgAutofocus='NO';
 % More subfields added below in "per band" section

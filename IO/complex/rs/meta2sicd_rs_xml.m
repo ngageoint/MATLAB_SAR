@@ -430,8 +430,8 @@ output_meta.ImageFormation.TxFrequencyProc.MinProc = ...
     output_meta.RadarCollection.TxFrequency.Min;
 output_meta.ImageFormation.TxFrequencyProc.MaxProc = ...
     output_meta.RadarCollection.TxFrequency.Max;
-output_meta.ImageFormation.STBeamComp = 'NO';
-output_meta.ImageFormation.ImageBeamComp = 'NO';
+output_meta.ImageFormation.STBeamComp = 'GLOBAL';
+output_meta.ImageFormation.ImageBeamComp = 'SV';
 output_meta.ImageFormation.AzAutofocus = 'NO';
 output_meta.ImageFormation.RgAutofocus = 'NO';
 

@@ -291,11 +291,11 @@ common_meta.ImageFormation.TxFrequencyProc.MaxProc=...
 common_meta.ImageFormation.ImageFormAlgo='RMA';
 % From the Sentinel-1 Level 1 Detailed Algorithm Definition document
 if common_meta.CollectionInfo.RadarMode.ModeID(1)=='S'
-    common_meta.ImageFormation.STBeamComp='NO'; %STRIPMAP
+    common_meta.ImageFormation.STBeamComp='GLOBAL'; %STRIPMAP
 else
     common_meta.ImageFormation.STBeamComp='SV'; %TOPSAR
 end
-common_meta.ImageFormation.ImageBeamComp='NO';
+common_meta.ImageFormation.ImageBeamComp='SV';
 common_meta.ImageFormation.AzAutofocus='NO';
 common_meta.ImageFormation.RgAutofocus='NO';
 
