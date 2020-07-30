@@ -3,13 +3,6 @@ function [ output_meta ] = meta2sicd_iceye(hdffile)
 %
 % Written by: Tim Cox, NRL; Wade Schwartzkopf, NGA/Reseach
 %
-% Notes:
-%    1. "coord_center" has coordinate off image in public spotlight examples
-%    2. Doppler rate has wrong sign
-%    3. In Stripmap mode data, Grid.Col.Wgt claims no weighting but spatial
-%       frequency domain data is not flat and shows falloff on edges.  No
-%       slow-time beam comp?
-%
 % //////////////////////////////////////////
 % /// CLASSIFICATION: UNCLASSIFIED       ///
 % //////////////////////////////////////////
@@ -48,9 +41,18 @@ output_meta.ImageData.FullImage.NumRows = output_meta.ImageData.NumRows;
 output_meta.ImageData.FullImage.NumCols = output_meta.ImageData.NumCols;
 coord_center = get_hdf_data(hdffile,'/','coord_center');
 output_meta.ImageData.SCPPixel.Row = uint32(coord_center(1))-1;
-output_meta.ImageData.SCPPixel.Col = min(uint32(coord_center(2))-1,output_meta.ImageData.NumCols-1);  % One example goes past end
-if strcmpi(get_hdf_data(hdffile,'/','look_side'),'left')
-    output_meta.ImageData.SCPPixel.Col = output_meta.ImageData.NumCols - output_meta.ImageData.SCPPixel.Col - 1;
+if coord_center(2)>0 && coord_center(2)<output_meta.ImageData.NumCols
+    output_meta.ImageData.SCPPixel.Col = uint32(coord_center(2))-1;
+    if strcmpi(get_hdf_data(hdffile,'/','look_side'),'left')
+        output_meta.ImageData.SCPPixel.Col = output_meta.ImageData.NumCols - ...
+            output_meta.ImageData.SCPPixel.Col - 1;
+    end
+else
+    % Bug in earlier version of ICEYE processor sometimes resulted in
+    % center pixel outside of image in the column direction.  In this case,
+    % we just choose our own.  The choice of SCP is essentially arbitrary
+    % anyway.
+    output_meta.ImageData.SCPPixel.Col = output_meta.ImageData.NumCols/2;
 end
 
 %% GeoData
@@ -102,10 +104,13 @@ output_meta.Grid.Row.ImpRespBW = 2*double(get_hdf_data(hdffile,'/','chirp_bandwi
 output_meta.Grid.Row.DeltaKCOAPoly=0;
 output_meta.Grid.Row.WgtType.WindowName = get_hdf_data(hdffile,'/','window_function_range');
 output_meta.Grid.Col.WgtType.WindowName = get_hdf_data(hdffile,'/','window_function_azimuth');
-%for now only have seen uniform weighted data
+% For now only have seen uniform weighted data
 if strcmpi(output_meta.Grid.Row.WgtType.WindowName,'NONE')
     output_meta.Grid.Row.WgtType.WindowName = 'UNIFORM';
 end
+% Although no weighting is applied, ICEYE generally does not remove
+% slow-time beam shape, so spectrum will not necessarily be flat.  (This is
+% reflected in the STBeamComp parameter in SICD.)
 if strcmpi(output_meta.Grid.Col.WgtType.WindowName,'NONE')
     output_meta.Grid.Col.WgtType.WindowName = 'UNIFORM';
 end
@@ -203,7 +208,7 @@ end
 zd_t_scp = round((zd_left-start_t)*SECONDS_IN_A_DAY) + ... % Convert days to seconds
     (zd_left_frac-start_frac) + ... % Handle fractional seconds
     (double(output_meta.ImageData.SCPPixel.Col) * ss_zd_s);
-% Reference time for Doppler polynomials
+% Reference time for Doppler polynomials according to ICEYE documentation
 tref = get_hdf_data(hdffile,'/','first_pixel_time') + ...
     double(get_hdf_data(hdffile,'/','number_of_range_samples'))/...
     (2*get_hdf_data(hdffile,'/','range_sampling_rate'));
@@ -220,8 +225,12 @@ vm_ca_sq = vel_x.^2 + vel_y.^2 + vel_z.^2; % Magnitude of the velocity squared
 r_ca = [output_meta.RMA.INCA.R_CA_SCP; 1]; % Polynomial representing range as a function of range distance from SCP
 % Shift 1D polynomial to account for SCP (since we picked SCP to match
 % reference point, this shouldn't do anything)
-dop_rate_poly_rg_shifted=polyshift(...
-    -get_hdf_data(hdffile,'/','doppler_rate_coeffs'), ...  % ICEYE seems to have a negative of Doppler rate
+dop_rate_coeffs = get_hdf_data(hdffile,'/','doppler_rate_coeffs');
+% Prior to ICEYE_P_1.14 processor, absolute value of Doppler rate was
+% provided, not true Doppled rate.  Since Doppler rate is always negative
+% will will flip sign appropriately.
+dop_rate_coeffs = -sign(dop_rate_coeffs(1))* dop_rate_coeffs;
+dop_rate_poly_rg_shifted=polyshift(dop_rate_coeffs, ...
     (2*output_meta.RMA.INCA.R_CA_SCP/SPEED_OF_LIGHT-tref));  % This offset should be zero because of how we have chosen SCP
 % Scale 1D polynomial to from Hz/s^n to Hz/m^n
 dop_rate_poly_rg_scaled=dop_rate_poly_rg_shifted.*...

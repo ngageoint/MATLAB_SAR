@@ -1,5 +1,5 @@
 function [ readerobj ] = open_iceye_reader( filename )
-%OPEN_CSM_READER Intiates a reader object for ICEYE SLC HDF5 file format.
+%OPEN_ICEYE_READER Intiates a reader object for ICEYE SLC HDF5 file format.
 %
 % Written by: Tim Cox, NRL.  Based on the CSM/NISAR reader by Wade Schwartzkopf, NGA/IDT
 %
