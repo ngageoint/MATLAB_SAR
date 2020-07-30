@@ -104,7 +104,7 @@ for i = {'Row','Col'}
             for j = 1:size(vertices,2)
                 if isfield(output_meta.Grid.(row_column),'DeltaKCOAPoly')
                     currentDeltaK = sicd_polyval2d(output_meta.Grid.(row_column).DeltaKCOAPoly,...
-                        vertices(1,j),vertices(2,j));
+                        vertices(1,j),vertices(2,j),output_meta);
                     min_dk = min(min_dk, currentDeltaK);
                     max_dk = max(max_dk, currentDeltaK);
                 end
@@ -779,7 +779,7 @@ end
 % to do this.
 
 % DERIVED: Radiometric parameters RCS, sigma_0, gamma, and beta can be derived from each other
-if isfield(output_meta, 'Radiometric') && isfield(output_meta, 'Grid')
+if isfield(output_meta, 'Radiometric') && isfield(output_meta, 'Grid') && isfield(output_meta, 'SCPCOA')
     % Calculate slant plane area
     if isfield(output_meta.Grid.Row, 'WgtFunct')
         rng_wght_f=mean(output_meta.Grid.Row.WgtFunct.^2) / ...

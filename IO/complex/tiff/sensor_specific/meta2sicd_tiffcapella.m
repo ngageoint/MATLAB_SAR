@@ -65,7 +65,6 @@ meta.ImageData.SCPPixel.Col = floor(meta.ImageData.NumCols/2);
 meta.ImageData.SCPPixel.Row = floor(meta.ImageData.NumRows/2);
 if strcmpi(meta.native.tiff.ImageDescription.collect.radar.pointing,'left')
     meta.ImageData.SCPPixel.Col = meta.ImageData.NumCols - meta.ImageData.SCPPixel.Col - 1;
-    meta.ImageData.SCPPixel.Row = meta.ImageData.NumRows - meta.ImageData.SCPPixel.Row - 1;
 end
 
 %% GeoData
