@@ -141,9 +141,9 @@ end
 % Need to make this polynomial relative to the start time of the collect
 t = round((state_vector_T-start_t)*SECONDS_IN_A_DAY) + ... % Convert from days to secs
         (state_vector_T_frac-start_frac); % Handle fractional seconds
-output_meta.Position.ARPPoly.X = fliplr(polyfit(t,get_hdf_data(hdffile,'/','posX'),5))';
-output_meta.Position.ARPPoly.Y = fliplr(polyfit(t,get_hdf_data(hdffile,'/','posY'),5))';
-output_meta.Position.ARPPoly.Z = fliplr(polyfit(t,get_hdf_data(hdffile,'/','posZ'),5))';
+output_meta.Position.ARPPoly.X = fliplr(polyfit(t(:),get_hdf_data(hdffile,'/','posX'),5))';
+output_meta.Position.ARPPoly.Y = fliplr(polyfit(t(:),get_hdf_data(hdffile,'/','posY'),5))';
+output_meta.Position.ARPPoly.Z = fliplr(polyfit(t(:),get_hdf_data(hdffile,'/','posZ'),5))';
 % Velocity is in native metadata here, but we will derive it
 % velX = get_hdf_data(hdffile,'/','velX');
 % velY = get_hdf_data(hdffile,'/','velY');
@@ -349,6 +349,11 @@ function value = get_hdf_data(hid_t,path,data_name)
 gid = H5G.open(hid_t,path);
 data = H5D.open(gid,data_name);
 value = H5D.read(data);
+% Versions of MATLAB prior to 2020a resulted in single-element cell arrays
+% for some ICEYE HDF5 fields.
+if iscell(value)
+    value = value{1};
+end
 H5G.close(gid);
 H5D.close(data);
 end
