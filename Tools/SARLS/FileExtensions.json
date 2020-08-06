@@ -1,0 +1,11 @@
+{
+   "nitf" : true,
+   "ntf" : true,
+   "xml" : true,
+   "safe" : true,
+   "h5" : true,
+   "tif" : false,
+   "tiff" : false,
+   "cphd" : false,
+   "dres" : false
+}
