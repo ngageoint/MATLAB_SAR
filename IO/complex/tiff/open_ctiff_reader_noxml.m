@@ -27,8 +27,16 @@ tags = read_tiff_tags(filename);
 % have to extend the reader to handle that case.  These checks will at
 % least warn a user to explain why the reader is not working.
 fixed_rowlength = all(tags{1}.StripByteCounts==tags{1}.StripByteCounts(1));
-contiguous = all((tags{1}.StripOffsets(1:(end-1)) + ...
-    tags{1}.StripByteCounts(1:(end-1))) == tags{1}.StripOffsets(2:end));
+if isequal(class(tags{1}.StripOffsets), class(tags{1}.StripByteCounts))
+    % Don't change if possible
+    StripOffsets = tags{1}.StripOffsets;
+    StripByteCounts = tags{1}.StripByteCounts;
+else  % Sometimes come in different integer classes, so cast to common
+    StripOffsets = uint64(tags{1}.StripOffsets);
+    StripByteCounts = uint64(tags{1}.StripByteCounts);
+end
+contiguous = all((StripOffsets(1:(end-1)) + ...
+    StripByteCounts(1:(end-1))) == StripOffsets(2:end));
 if ~fixed_rowlength || ~contiguous
     error('OPEN_CTIFF_READER_NOXML:NONCONTIGUOUS_DATA','This TIFF reader only handles contiguous data.');
 end
@@ -66,7 +74,7 @@ end
 datasize=double([tags{image_n}.ImageWidth tags{image_n}.ImageLength]);
 % Compute parameters necessary for reading pixel data
 % Determine TIFF endianness
-fid = fopen(filename,'r');
+fid = fopen(filename,'r','b','US-ASCII');
 endian = fread(fid,2,'uint8=>char').';
 fclose(fid);
 switch endian

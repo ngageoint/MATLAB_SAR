@@ -691,7 +691,7 @@ if exist('beta_domnode','var')
         % For the datasets we have seen, this function is very close to
         % linear.  For the "Mixed" LUT, there is a tiny linear piecewise
         % deviation from a single overall linear.
-        betapoly = polyfit(coords_rg_m, betas, 2);
+        betapoly = polyfit(coords_rg_m, 1./betas.^2, 2);
         output_meta.Radiometric.BetaZeroSFPoly = betapoly(end:-1:1).';
     end
     % RCS, Sigma, and Gamma will be computed below in derived_sicd_fields
