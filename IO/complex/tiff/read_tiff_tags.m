@@ -15,8 +15,8 @@ function [ tags ] = read_tiff_tags( filename )
 %% Define basic TIFF stuff
 % These are current as of June 9, 2015.
 % TIFF Image File Directory (IFD) data types
-TYPE_SIZE = [1 1 2 4 8 1 1 2 4 8 4 8];
-TYPE_STR = {'uint8','char', 'uint16', 'uint32', '', 'int8', 'uint8', 'int16', 'int32', '', 'single', 'double'};
+TYPE_SIZE = [1 1 2 4 8 1 1 2 4 8 4 8 NaN NaN NaN 8 8 8];
+TYPE_STR = {'uint8','char', 'uint16', 'uint32', '', 'int8', 'uint8', 'int16', 'int32', '', 'single', 'double', '', '', '', 'uint64', 'int64', 'uint64'};
 % Baseline TIFF tages
 BASELINE_TAG_KEYS = [254:259, 262:266, 270:274, 277:284, 288:291, 296, ...
     305:306, 315:316, 320, 338, 33432];
@@ -154,7 +154,23 @@ fid = fopen(filename,'r',endian,'UTF-8'); % Reopen file with correct endianness
 % include UTF-encoded strings.  This should work for both.
 fseek(fid,2,'bof'); % Already read endianness, so we can now skip over it
 magicnumber = fread(fid,1,'int16'); % This value should be 42.
+switch magicnumber
+    case 42
+        count_type = 'uint32';
+        num_entries_type = 'uint16';
+        value_offset_threshold = 4;
+    case 43  % BigTIFF
+        count_type = 'uint64';
+        num_entries_type = 'uint64';
+        value_offset_threshold = 8;
+    otherwise
+        error('READ_TIFF_TAGS:INVALID_MAGICNUMBER','Invalid "magic number" found.');
+end
+offset_type = ['*' count_type];
 next_ifd = fread(fid,1,'uint32'); % Pointer to next image file header
+if magicnumber==43
+    next_ifd = fread(fid,1,offset_type);
+end
 tags = {};
 while next_ifd > 0 % For every image in file, read its tags
     fseek(fid, next_ifd, 'bof');
@@ -171,24 +187,24 @@ fclose(fid);
     % Assumes file handle is pointed at beginning of an IFD
     function [tags, next_ifd] = read_ifd(fid)
         tags = struct();
-        num_ifd_entries = fread(fid,1,'uint16');
+        num_ifd_entries = fread(fid,1,num_entries_type);
         for entry_i = 1:num_ifd_entries
             tag_numeric = fread(fid,1,'uint16');
             type = fread(fid,1,'uint16');
-            count = fread(fid,1,'uint32');
+            count = fread(fid,1,count_type);
             if type>0 && type<=numel(TYPE_SIZE) && ~isempty(TYPE_STR{type})
                 total_size = TYPE_SIZE(type)*count;
-                if total_size <= 4 % offset_value is a value
+                if total_size <= value_offset_threshold % offset_value is a value
                     value = fread(fid,count,['*' TYPE_STR{type}]);
-                    fseek(fid,4-total_size,'cof');
+                    fseek(fid,value_offset_threshold-total_size,'cof');
                 else % offset_value is an offset
-                    offset = fread(fid,1,'*uint32');
+                    offset = fread(fid,1,offset_type);
                     save_ptr = ftell(fid);
                     fseek(fid,offset,'bof');
                     value = fread(fid,count,['*' TYPE_STR{type}]).';
                     fseek(fid,save_ptr,'bof');
                 end
-                if isKey(RECOGNIZED_TAGS, tag_numeric);
+                if isKey(RECOGNIZED_TAGS, tag_numeric)
                     tags.(RECOGNIZED_TAGS(tag_numeric)) = value;
                 else
                     if ~isfield(tags,'Unrecognized')
@@ -208,7 +224,7 @@ fclose(fid);
                 fseek(fid,4,'cof');
             end
         end
-        next_ifd = fread(fid,1,'uint32');
+        next_ifd = fread(fid,1,offset_type);
     end
 
 end
