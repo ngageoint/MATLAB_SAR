@@ -1,13 +1,15 @@
 function [ output_meta ] = meta2sicd_csm( HDF5_fid )
 %META2SICD_CSM Converts CSM HDF5 into a SICD-style metadata structure
 %
+% Also handles KOMPSAT-5, which is nearly identical format
+%
 % Takes as input a file identifier to an open HDF5 file-- as is returned by
 % H5F.open
 %
 % SICD fields not currently computed:
 %    ValidData
 %
-% Written by: Wade Schwartzkopf, NGA/IDT
+% Written by: Wade Schwartzkopf, NGA/Research
 %
 % //////////////////////////////////////////
 % /// CLASSIFICATION: UNCLASSIFIED       ///
@@ -25,18 +27,30 @@ for i=1:numbands % "pingpong" mode has multiple polarizations
 end
 
 %% CollectionInfo
-output_meta.CollectionInfo.CollectorName=get_hdf_attribute(HDF5_fid,'Satellite ID')';
+output_meta.CollectionInfo.CollectorName=deblank(get_hdf_attribute(HDF5_fid,'Satellite ID')');
 output_meta.CollectionInfo.CoreName=num2str(get_hdf_attribute(HDF5_fid,'Programmed Image ID'));
 output_meta.CollectionInfo.CollectType='MONOSTATIC';
-switch get_hdf_attribute(HDF5_fid,'Acquisition Mode')'
-    case {'HIMAGE','PINGPONG'} % Stripmap
-        output_meta.CollectionInfo.RadarMode.ModeType='STRIPMAP';
-    case {'WIDEREGION','HUGEREGION'} % ScanSAR
-        output_meta.CollectionInfo.RadarMode.ModeType='STRIPMAP';
-    case {'ENHANCED SPOTLIGHT','SMART'} % "Spotlight"
-        output_meta.CollectionInfo.RadarMode.ModeType='DYNAMIC STRIPMAP';
+switch output_meta.CollectionInfo.CollectorName
+    case 'CSK'
+        switch get_hdf_attribute(HDF5_fid,'Acquisition Mode')'
+            case {'HIMAGE','PINGPONG'} % Stripmap
+                output_meta.CollectionInfo.RadarMode.ModeType='STRIPMAP';
+            case {'WIDEREGION','HUGEREGION'} % ScanSAR
+                output_meta.CollectionInfo.RadarMode.ModeType='STRIPMAP';
+            case {'ENHANCED SPOTLIGHT','SMART'} % "Spotlight"
+                output_meta.CollectionInfo.RadarMode.ModeType='DYNAMIC STRIPMAP';
+        end
+    case 'KMPS5'
+        switch deblank(get_hdf_attribute(HDF5_fid,'Acquisition Mode')')
+            case {'STANDARD','ENHANCED STANDARD'} % Stripmap
+                output_meta.CollectionInfo.RadarMode.ModeType='STRIPMAP';
+            case {'WIDE SWATH','ENHANCED WIDE SWATH'} % ScanSAR
+                output_meta.CollectionInfo.RadarMode.ModeType='STRIPMAP';
+            case {'HIGH RESOLUTION', 'ENHANCED HIGH RESOLUTION', 'ULTRA HIGH RESOLUTION'} % "Spotlight"
+                output_meta.CollectionInfo.RadarMode.ModeType='DYNAMIC STRIPMAP';
+        end
 end
-output_meta.CollectionInfo.RadarMode.ModeID=get_hdf_attribute(HDF5_fid,'Multi-Beam ID')';
+output_meta.CollectionInfo.RadarMode.ModeID=deblank(get_hdf_attribute(HDF5_fid,'Multi-Beam ID')');
 output_meta.CollectionInfo.Classification='UNCLASSIFIED';
 
 %% ImageCreation
@@ -50,13 +64,13 @@ output_meta.ImageData=struct(); % Just a placeholder
 % Used for computing SCP later
 
 %% GeoData
-if strcmp(get_hdf_attribute(HDF5_fid,'Ellipsoid Designator')','WGS84')
+if strcmp(deblank(get_hdf_attribute(HDF5_fid,'Ellipsoid Designator')'),'WGS84')
     output_meta.GeoData.EarthModel='WGS_84';
 end
 % Most subfields added below in "per band" section
 
 %% Grid
-if strncmp(get_hdf_attribute(HDF5_fid,'Projection ID')','SLANT RANGE/AZIMUTH',19)
+if strncmp(get_hdf_attribute(HDF5_fid,'Projection ID')','SLANT',5)
     output_meta.Grid.ImagePlane='SLANT';
     output_meta.Grid.Type='RGZERO';
 else
@@ -70,17 +84,27 @@ output_meta.Grid.Col.KCtr=0;
 output_meta.Grid.Row.DeltaKCOAPoly=0;
 output_meta.Grid.Row.WgtType.WindowName=upper(deblank(get_hdf_attribute(HDF5_fid,'Range Focusing Weighting Function')'));
 if strcmpi(output_meta.Grid.Row.WgtType.WindowName,'HAMMING') % The usual CSM weigting
+    rowval = get_hdf_attribute(HDF5_fid,'Range Focusing Weighting Coefficient');
+elseif strcmpi(output_meta.Grid.Row.WgtType.WindowName,'GENERAL_COSINE')
+    output_meta.Grid.Row.WgtType.WindowName='HAMMING';  % They are effectively the same
+    rowval = 1-get_hdf_attribute(HDF5_fid,'Range Focusing Weighting Coefficient');
+end
+if exist('rowval','var')
     output_meta.Grid.Row.WgtType.Parameter.name = 'COEFFICIENT';
-    val = get_hdf_attribute(HDF5_fid,'Range Focusing Weighting Coefficient');
-    output_meta.Grid.Row.WgtType.Parameter.value = num2str(val);
-    output_meta.Grid.Row.WgtFunct = raised_cos_fun(512,val);
+    output_meta.Grid.Row.WgtType.Parameter.value = num2str(rowval);
+    output_meta.Grid.Row.WgtFunct = raised_cos_fun(512,rowval);
 end
 output_meta.Grid.Col.WgtType.WindowName=upper(deblank(get_hdf_attribute(HDF5_fid,'Azimuth Focusing Weighting Function')'));
 if strcmpi(output_meta.Grid.Col.WgtType.WindowName,'HAMMING') % The usual CSM weigting
+    colval = get_hdf_attribute(HDF5_fid,'Azimuth Focusing Weighting Coefficient');
+elseif strcmpi(output_meta.Grid.Col.WgtType.WindowName,'GENERAL_COSINE')
+    output_meta.Grid.Col.WgtType.WindowName='HAMMING';  % They are effectively the same
+    colval = 1-get_hdf_attribute(HDF5_fid,'Azimuth Focusing Weighting Coefficient');
+end
+if exist('colval','var')
     output_meta.Grid.Col.WgtType.Parameter.name = 'COEFFICIENT';
-    val = get_hdf_attribute(HDF5_fid,'Azimuth Focusing Weighting Coefficient');
-    output_meta.Grid.Col.WgtType.Parameter.value = num2str(val);
-    output_meta.Grid.Col.WgtFunct = raised_cos_fun(512,val);
+    output_meta.Grid.Col.WgtType.Parameter.value = num2str(colval);
+    output_meta.Grid.Col.WgtFunct = raised_cos_fun(512,colval);
 end
 % More subfields added below in "per band" section
 
@@ -136,7 +160,7 @@ output_meta.Position.ARPPoly.Z  = P_z(end:-1:1).';
 %% RadarCollection
 pols=cell(numbands,1);
 for i=1:numbands
-    pols{i}=get_hdf_attribute(group_id(i),'Polarisation');
+    pols{i}=deblank(get_hdf_attribute(group_id(i),'Polarisation')');
     output_meta.RadarCollection.RcvChannels.ChanParameters(i).TxRcvPolarization=[pols{i}(1) ':' pols{i}(2)];
 end
 tx_pol = [pols{:}]; tx_pol = unique(tx_pol(1:2:end));
@@ -156,7 +180,7 @@ output_meta.ImageFormation.RcvChanProc=struct('NumChanProc',1,'PRFScaleFactor',1
 output_meta.ImageFormation.ImageFormAlgo='RMA';
 output_meta.ImageFormation.TStartProc=0;
 output_meta.ImageFormation.TEndProc=output_meta.Timeline.CollectDuration;
-output_meta.ImageFormation.STBeamComp='SV';
+output_meta.ImageFormation.STBeamComp='NO';
 output_meta.ImageFormation.ImageBeamComp='SV';
 output_meta.ImageFormation.AzAutofocus='NO';
 output_meta.ImageFormation.RgAutofocus='NO';
@@ -174,6 +198,7 @@ dop_poly_rg=dop_poly_rg(1:find(dop_poly_rg~=0,1,'last'));  % Strip of zero coeff
 % dop_rate_poly_az=get_hdf_attribute(HDF5_fid,'Doppler Rate vs Azimuth Time Polynomial');
 dop_rate_poly_rg=get_hdf_attribute(HDF5_fid,'Doppler Rate vs Range Time Polynomial');
 dop_rate_poly_rg=dop_rate_poly_rg(1:find(dop_rate_poly_rg~=0,1,'last'));  % Strip of zero coefficients
+dop_rate_poly_rg=-sign(dop_rate_poly_rg(1))*dop_rate_poly_rg;  % Must be negative (KS5 makes it positive)
 
 %% SCPCOA
 output_meta.SCPCOA.SideOfTrack=get_hdf_attribute(HDF5_fid,'Look Side')';
