@@ -108,7 +108,10 @@ if nargin == 3 && isnumeric(filename) && isnumeric(varargin{1}) && isnumeric(var
     bandwidth = filename;  % Hz
     nesz = varargin{1};  % in dB
     graze = varargin{2};  % in degrees
-    image_information_metric = (((bandwidth*2/SPEED_OF_LIGHT).*cosd(graze)).^2).*log2(1+1/(10^(nesz/10)));
+    bandwidth = bandwidth*2/SPEED_OF_LIGHT;  % Convert units from Hz to cycles/m
+    bandwidth = bandwidth*cosd(graze);  % Convert from slant plane to ground plane
+    bandwidth = bandwidth.^2;  % Convert from 1D bandwidth to 2D bandwidth area (assumes azimuth bandwidth same as range)
+    image_information_metric = bandwidth.*log2(1+1/(10^(nesz/10)));
     rniirs = estimate_rniirs(image_information_metric);
     diagnostic = struct();  % No diagnostics for this version
     return;
