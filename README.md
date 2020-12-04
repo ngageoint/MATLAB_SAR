@@ -11,6 +11,7 @@ The toolbox has readers and SICD converters for the following complex SAR format
 * COSMO-SkyMed
 * Complex NITF
 * GFF (Sandia)
+* KOMPSAT-5
 * NISAR
 * Sentinel-1
 * SICD
