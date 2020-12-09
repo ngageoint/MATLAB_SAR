@@ -416,6 +416,29 @@ for i=1:numel(freqs)
         noise_samples = nesz - (10*log10(sigma0sf));
         pol_meta.Radiometric.NoiseLevel.NoisePoly = ...
             polyfit2d(noise_samples, coords_az_m, coords_rg_m, POLY_ORDER);
+        % The conversion between radiometric fields in simulated data don't
+        % seem to be valid, so we will skip using the non-constant terms
+        % for now.  But this is how one would do it:
+        % Fit polynomial only to valid data in image
+        % az_bounds1 = [-double(pol_meta.ImageData.SCPPixel.Col) ...
+        %     double(pol_meta.ImageData.NumCols - pol_meta.ImageData.SCPPixel.Col - 1)] *...
+        %     pol_meta.Grid.Col.SS;
+        % rg_bounds1 = [-double(pol_meta.ImageData.SCPPixel.Row) ...
+        %     double(pol_meta.ImageData.NumRows - pol_meta.ImageData.SCPPixel.Row - 1)] *...
+        %     pol_meta.Grid.Row.SS;
+        % for k = 1:numel(cal_fields)
+        %     % Only fit valid values
+        %     rg_val = all(isfinite(cal_data{k}),1)&coords_rg_m'>rg_bounds1(1)&coords_rg_m'<rg_bounds1(2);
+        %     if ~any(diff(cal_data{k}(isfinite(cal_data{k}))))  % Constant across image
+        %         pol_meta.Radiometric.(sicd_cal_fields{k}) = mean(cal_data{k}(:),'omitnan');
+        %     elseif all(all(diff(cal_data{k},1,1)==0) | all(~isfinite(cal_data{k})))% Only varies in range
+        %         rad_poly = polyfit(coords_rg_m(rg_val), cal_data{k}(1,rg_val), 7);
+        %         pol_meta.Radiometric.(sicd_cal_fields{k}) = rad_poly(end:-1:1).';
+        %     else  % Varies 2-dimensionally.  Not tested.  POLY_ORDER may not be reasonable.
+        %         pol_meta.Radiometric.(sicd_cal_fields{k}) = ...
+        %             polyfit2d(cal_data{k}(:,rg_val), coords_az_m, coords_rg_m(rg_val), POLY_ORDER);
+        %     end
+        % end
 
         %% GeoData
         % Now that sensor model fields have been populated, we can populate
@@ -443,7 +466,11 @@ function value = get_hdf_attribute(hid_t,path,attribute_name)
 gid = H5G.open(hid_t,path);
 attribute = H5A.open(gid,attribute_name);
 value = H5A.read(attribute,H5A.get_type(attribute));
-value = value{1};
+% The behavior of whether HDF5 attributes are returned in cells seems to
+% have changed in 2020a. The behavior also changed in h5readatt.
+if iscell(value)
+    value = value{1};
+end
 H5G.close(gid);
 H5A.close(attribute);
 end

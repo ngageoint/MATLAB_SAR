@@ -12,7 +12,7 @@ boolout = isequal(fread( fid, 8, 'uint8' )',[137 72 68 70 13 10 26 10]); % HDF5 
 fclose(fid);
 % Now that we know it is HDF5, is it NISAR SLC HDF5?
 if boolout
-    try % Error if root attribute 'Mission ID' does not exist
+    try % Error if root attribute 'mission_name' does not exist
         boolout=strcmpi(h5readatt(filename,'/','mission_name'), 'NISAR') && ...
             strcmpi(deblank(h5read(filename,'/science/LSAR/identification/productType')), 'SLC');
     catch % h5readatt replaced hdf5read at some point in MATLAB history
