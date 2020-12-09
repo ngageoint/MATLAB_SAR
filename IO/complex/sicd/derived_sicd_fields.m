@@ -779,6 +779,9 @@ end
 % to do this.
 
 % DERIVED: Radiometric parameters RCS, sigma_0, gamma, and beta can be derived from each other
+% Technically, the ratio between these terms could vary spatially across
+% the image. However, this difference is usually small, so we approximate
+% the relationship as a constant factor between these terms.
 if isfield(output_meta, 'Radiometric') && isfield(output_meta, 'Grid') && isfield(output_meta, 'SCPCOA')
     % Calculate slant plane area
     if isfield(output_meta.Grid.Row, 'WgtFunct')
