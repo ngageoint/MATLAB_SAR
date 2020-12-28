@@ -45,7 +45,7 @@ k_r_ss = k_r_ss.*ones(size(phase_history,2),1);
 for pulse=1:size(phase_history,2)
     % Compute the k_r values.  k_r for each sample is the radial position
     % or the distance in k-space from the origin.
-    k_r = k_r0(pulse) + (k_r_ss(pulse)*(1:size(phase_history,1)));
+    k_r = k_r0(pulse) + (k_r_ss(pulse)*(0:(size(phase_history,1)-1)));
 
     % Compute the k_v coordinates.  This is simply the rectangular
     % coordinate of the polar k_r, k_a coordinates in the V direction.
