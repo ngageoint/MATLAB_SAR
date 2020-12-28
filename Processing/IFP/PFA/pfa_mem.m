@@ -63,7 +63,7 @@ k_r0 = nbdata.Fx0 .* rf_to_rad; % Radial position of the first sample in each pu
 k_r_ss = nbdata.Fx_SS .* rf_to_rad; % Radial position spacings between the samples in each pulse
 % Compute new coordinates onto which to interpolate
 [k_v_bounds, k_u_bounds] = pfa_inscribed_rectangle_coords(k_a, k_r0, ...
-    k_r_ss * size(phase_history,1));
+    k_r_ss * (size(phase_history,1)-1));
 % Coordinates onto which we will interpolate
 new_v = linspace(k_v_bounds(1), k_v_bounds(2), size(phase_history,1)).';
 new_u = linspace(k_u_bounds(1), k_u_bounds(2), size(phase_history,2)).';
