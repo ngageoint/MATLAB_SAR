@@ -14,6 +14,10 @@ try
     domnode = xmlread( java.io.StringBufferInputStream( fread(fid,nitf_meta.minimal.desLengths(1),'uint8=>char')));
     fclose(fid);
     boolout = strncmpi('SICD', domnode.getDocumentElement.getNodeName,4);
+    if boolout  % Possible to have non-complex data with SICD DES
+        nitf_meta = read_nitf_meta(filename);
+        boolout = nitf_meta.imagesubhdr{1}.NBANDS == 2;
+    end
 catch
     % read_sicd_nitf_offsets throws an error for non-NITF files
     % non-XML DES will also throw error
