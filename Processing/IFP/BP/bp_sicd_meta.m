@@ -27,7 +27,7 @@ function [sicdmeta] = bp_sicd_meta(meta, nbdata, ifp_params)
 sicdmeta = meta2sicd_cphdx(meta,nbdata,ifp_params.channel);
 
 % Image Creation
-sicdmeta.ImageCreation.DateTime = datestr(now());
+sicdmeta.ImageCreation.DateTime = now();
 sicdmeta.ImageCreation.Profile  = 'bp_sicd_meta.m';
 
 % ImageData
@@ -103,8 +103,8 @@ switch ifp_params.grid_type
         sicdmeta.Grid.ImagePlane = 'OTHER';
         sicdmeta.Grid.Type = 'OTHER';
 end
-pulse_bandwidth = nbdata.Fx_SS * length(ifp_params.sample_range);
-subset_Fx0 = nbdata.Fx0 + (nbdata.Fx_SS * double(ifp_params.pulse_range(1)));
+pulse_bandwidth = nbdata.Fx_SS * (numel(ifp_params.sample_range)-1);
+subset_Fx0 = nbdata.Fx0 + (nbdata.Fx_SS * double(ifp_params.sample_range(1)-1));
 resolution = pulse_info_to_resolution_extent(...
     nbdata.TxPos - nbdata.SRPPos,... % Line-of-site vectors
     subset_Fx0 + (pulse_bandwidth/2),... % Center frequency
@@ -120,7 +120,7 @@ if isempty(ifp_params.grid) % If arbitrary grid is passed, none of the following
     % ImpRespBW will be computed later from ImpRespWid in derived_sicd_fields()
     sicdmeta.Grid.Row.WgtType.WindowName = 'UNIFORM';
     sicdmeta.Grid.Col.WgtType.WindowName = 'UNIFORM';
-    if all(isfield(ifp_params,{'row_unit_vector','col_unit_vector'}));
+    if all(isfield(ifp_params,{'row_unit_vector','col_unit_vector'}))
         sicdmeta.Grid.Row.UVectECF=cell2struct(num2cell(ifp_params.row_unit_vector(:)),{'X','Y','Z'});
         sicdmeta.Grid.Col.UVectECF=cell2struct(num2cell(ifp_params.col_unit_vector(:)),{'X','Y','Z'});
     end
