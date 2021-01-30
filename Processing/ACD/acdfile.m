@@ -60,8 +60,8 @@ corners(:,2) = startPoint_1+[chipSize(1)-1 0];
 corners(:,3) = startPoint_1+[0 chipSize(2)-1];
 corners(:,4) = startPoint_1+chipSize-1;
 endPoint_1=corners(:,4);
-pos_lla       = point_slant_to_ground(flipud(corners), meta_1, 'projectToDEM', false);
-corners_match = flipud(point_ground_to_slant(pos_lla, meta_2, 'projectToDEM', false));
+pos_lla       = point_slant_to_ground(flipud(corners), meta_1);
+corners_match = flipud(point_ground_to_slant(pos_lla, meta_2));
 startPoint_2=min(corners_match,[],2);
 endPoint_2=max(corners_match,[],2);
 % Make sure match AOI indices are within image bounds
@@ -122,7 +122,7 @@ if strcmp(p.Results.projectionType,'ground_northup')
     % Uniform lat/lon grid to interpolate to.  Here we're using the same
     % number of output samples (it should probably be slightly bigger since
     % the image area is probably larger).
-    pos_lla2     = point_slant_to_ground(flipud(corners_match), meta_2, 'projectToDEM', false);
+    pos_lla2     = point_slant_to_ground(flipud(corners_match), meta_2);
     chip_rows = size(oldImage_1,1);%%% * (max(pos_lla2(1,:))-min(pos_lla2(1,:)))/(max(pos_lla(1,:)) - min(pos_lla(1,:)));
     chip_cols = size(oldImage_1,2);%%% * (max(pos_lla2(2,:))-min(pos_lla2(2,:)))/(max(pos_lla(2,:)) - min(pos_lla(2,:)));
     [qx,qy] = meshgrid(linspace(min(pos_lla2(1,:)), max(pos_lla2(1,:)), chip_rows),...

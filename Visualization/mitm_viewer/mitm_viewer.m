@@ -146,7 +146,7 @@ main_toolbar = mitm_hand.main_toolbar;
 main_toolbar.addSeparator;
 main_toolbar.add(metaButton);
 try
-    if ~isempty(point_slant_to_ground([1; 1], metadata{mitm_hand.Frame}, 'projectToDEM', false))
+    if ~isempty(point_slant_to_ground([1; 1], metadata{mitm_hand.Frame}))
         main_toolbar.add(geojumpButton);
     end
 end

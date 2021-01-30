@@ -47,14 +47,14 @@ mitm_viewer(early_filename,'mode','aoi','selectCallback',@calculate_and_display_
         chipSize = min(2000,aoi_info(3:4));
         skip = [1 1];
         
-        full_acd = acdfile(early_filename, late_filename, startPoint_1, chipSize, skip, 'projectToDEM', false);
+        full_acd = acdfile(early_filename, late_filename, startPoint_1, chipSize, skip);
         full_acd_uint8=uint8(zeros(size(full_acd)));
         for i=1:size(full_acd,3)
             full_acd_uint8(:,:,i)=densityremap(full_acd(:,:,i));
         end
         figure('Name','Slant plane, shadows down'); imshow(permute(full_acd_uint8,[2 1 3]));
         
-%         full_acd = acdfile(early_filename, late_filename, startPoint_1, chipSize, skip, 'projectionType', 'ground_northup', 'projectToDEM', false);
+%         full_acd = acdfile(early_filename, late_filename, startPoint_1, chipSize, skip, 'projectionType', 'ground_northup');
 %         full_acd_uint8=uint8(zeros(size(full_acd)));
 %         for i=1:size(full_acd,3)
 %             full_acd_uint8(:,:,i)=densityremap(full_acd(:,:,i));
