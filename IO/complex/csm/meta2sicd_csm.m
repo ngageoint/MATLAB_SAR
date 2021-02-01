@@ -30,7 +30,7 @@ end
 output_meta.CollectionInfo.CollectorName=deblank(get_hdf_attribute(HDF5_fid,'Satellite ID')');
 output_meta.CollectionInfo.CoreName=num2str(get_hdf_attribute(HDF5_fid,'Programmed Image ID'));
 output_meta.CollectionInfo.CollectType='MONOSTATIC';
-switch output_meta.CollectionInfo.CollectorName
+switch output_meta.CollectionInfo.CollectorName(1:3)
     case 'CSK'
         switch get_hdf_attribute(HDF5_fid,'Acquisition Mode')'
             case {'HIMAGE','PINGPONG'} % Stripmap
@@ -40,7 +40,7 @@ switch output_meta.CollectionInfo.CollectorName
             case {'ENHANCED SPOTLIGHT','SMART'} % "Spotlight"
                 output_meta.CollectionInfo.RadarMode.ModeType='DYNAMIC STRIPMAP';
         end
-    case 'KMPS5'
+    case 'KMP'  % 'KMPS5'
         switch deblank(get_hdf_attribute(HDF5_fid,'Acquisition Mode')')
             case {'STANDARD','ENHANCED STANDARD'} % Stripmap
                 output_meta.CollectionInfo.RadarMode.ModeType='STRIPMAP';
@@ -353,7 +353,12 @@ for i=1:numbands
         SPEED_OF_LIGHT / (2 * fc * vm_ca_sq(1)); % Assumes a SGN of -1
     % Fields dependent on Doppler rate
     output_meta.Grid.Col.SS = sqrt(vm_ca_sq(1)) * abs(ss_az_s) * output_meta.RMA.INCA.DRateSFPoly(1,1);
-    dop_bw = get_hdf_attribute(group_id(i),'Azimuth Focusing Bandwidth'); % Doppler frequency
+    % dop_bw = get_hdf_attribute(group_id(i),'Azimuth Focusing Bandwidth'); % Doppler frequency
+    % 'Azimuth Focusing Bandwidth' sometimes represents something larger
+    % than ImpRespBW for S2 mode.  Not sure what "transition bandwidth"
+    % means, with respect to SAR, but it appears to correlate with non-zero
+    % Doppler frequency content in SLC.
+    dop_bw = get_hdf_attribute(group_id(i),'Azimuth Focusing Transition Bandwidth'); % Doppler frequency
     output_meta.Grid.Col.ImpRespBW = ... % Convert to azimuth spatial bandwidth (cycles per meter)
         min(dop_bw*abs(ss_az_s),1)/output_meta.Grid.Col.SS; % Can't have more bandwidth in data than sample spacing
     if strcmpi(output_meta.Grid.Col.WgtType.WindowName,'HAMMING') % The usual CSM weigting
