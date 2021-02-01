@@ -166,7 +166,7 @@ end
 
 % Need to disable some controls if we can't convert pixels to lat/lon
 if isempty(point_slant_to_ground([1; 1], ...
-        handles.mitm_hand.Metadata{handles.mitm_hand.Frame}, 'projectToDEM', false))
+        handles.mitm_hand.Metadata{handles.mitm_hand.Frame}))
     set([handles.SaveKML handles.LoadShapes handles.SaveShapes],'enable','off');
 else
     set([handles.SaveKML handles.LoadShapes handles.SaveShapes],'enable','on');

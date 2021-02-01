@@ -1099,7 +1099,7 @@ if TotSegments > 1
     count = 0;
     for i=1:TotSegments
         meta = reader_obj{i}.get_meta();
-        row_col_pos = point_ground_to_slant(lla, meta, 'projectToDEM', false).';
+        row_col_pos = point_ground_to_slant(lla, meta).';
         XPos = row_col_pos(2); YPos = row_col_pos(1);
         nx = meta.ImageData.NumCols;
         ny = meta.ImageData.NumRows;
@@ -1329,7 +1329,7 @@ if TotSegments > 1
     count = 0;
     for i=1:TotSegments
         meta = reader_obj{i}.get_meta();
-        row_col_pos = point_ground_to_slant(lla, meta, 'projectToDEM', false).';
+        row_col_pos = point_ground_to_slant(lla, meta).';
         XPos = row_col_pos(2); YPos = row_col_pos(1);
         nx = meta.ImageData.NumCols;
         ny = meta.ImageData.NumRows;

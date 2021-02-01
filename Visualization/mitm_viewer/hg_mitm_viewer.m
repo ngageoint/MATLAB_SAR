@@ -77,12 +77,6 @@ classdef hg_mitm_viewer < hgsetget
 %       PostChangeViewFcn Callback that occurs after any new data is loaded
 %                         into view.
 %       Remap             Remap function.  Default is 'densityremap'.
-%       UndulationFilename   The name/path of the file containing WGS84 to
-%                            geoid undulations.  This is used in the data
-%                            cursor (see geoid_undulation) to display
-%                            the height above ellipsoid rather then height
-%                            above mean sea level.  If the file doesn't
-%                            exist no HOE measurement is shown.
 %       Zoom              Zoom level.  2 means one pixel on the screen
 %                         represents a 2x2 pixel area in the file.
 %
@@ -155,7 +149,6 @@ properties (GetAccess = public, SetAccess = public)
     PreChangeViewFcn = @deal; % Callback that occurs before any new data is loaded into view
     PostChangeViewFcn = @deal; % Callback that occurs after any new data is loaded into view
     DataTransformFcn = []; % Callback that transforms the underlying complex data before remap and display
-    UndulationFilename = ''; % WGS84 geoid undulations
 end
 
 % Want to allow access for advanced use, but not for general use, so we hide
@@ -515,8 +508,7 @@ methods
     % a datacursor and computes a lat/long.
     function success = geojump(obj, lla)
         % Convert lat/long to row/column index
-        row_col_pos = point_ground_to_slant(lla, ...
-            obj.Metadata{obj.current_frame}, 'projectToDEM', false).';
+        row_col_pos = point_ground_to_slant(lla, obj.Metadata{obj.current_frame}).';
         % Check if valid within entire dataset
         if any(row_col_pos<1)||(row_col_pos(1)>obj.Metadata{obj.current_frame}.ImageData.NumRows)||...
                 (row_col_pos(2)>obj.Metadata{obj.current_frame}.ImageData.NumCols)
@@ -755,28 +747,13 @@ methods (Access = private)
         value=double(squeeze(obj.complex_image{obj.current_frame}(screenpos(2),screenpos(1),:)).');
         output_txt={['X: ' num2str(round(pos(1))-1)],... % Zero-based to be consistent with SICD
             ['Y: ' num2str(round(pos(2))-1)]};
-        
-%         Currently disabled because it makes data cursor much slower.
-%         try
-%             % Try to project the point to a DEM (most accurate projection)
-%             pos_lla = point_slant_to_ground([pos(2); pos(1)], obj.Metadata{obj.current_frame}, 'projectToDEM', true);
-%             projectionDesc = 'projected to DEM';
-%         catch
-            % Failing the projection to a DEM, just fall back to projecting
-            % to a plane.
-            pos_lla = point_slant_to_ground([pos(2); pos(1)], obj.Metadata{obj.current_frame}, 'projectToDEM', false);
-            projectionDesc = 'projected to plane';
-%         end
+        pos_lla = point_slant_to_ground([pos(2); pos(1)], obj.Metadata{obj.current_frame});
+        projectionDesc = 'projected to plane';
         if ~isempty(pos_lla)
             output_txt=[output_txt, {sprintf('Location (%s):',projectionDesc)}];
             output_txt=[output_txt, {sprintf('   Lat: %0.5f', pos_lla(1))}];
             output_txt=[output_txt, {sprintf('   Lon: %0.5f', pos_lla(2))}];
             output_txt=[output_txt, {sprintf('   Elev: %0.1f (HAE, %s)', pos_lla(3),'m')}];
-            if exist(obj.UndulationFilename, 'file')
-                undulation = geoid_undulation(pos_lla(1), pos_lla(2), 'undulationFilename', obj.UndulationFilename);
-                elev_msl = pos_lla(3) - undulation;
-                output_txt=[output_txt, {sprintf('   Elev: %.1f (MSL, %s)', elev_msl,'m')}];
-            end
         end
        
         output_txt=[output_txt, {['Value: ' num2str(value)]}];

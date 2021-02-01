@@ -17,7 +17,7 @@ function pos = point_slant_to_ground(points, metadata, varargin)
 % //////////////////////////////////////////
 
 try
-    pos = ecf_to_geodetic(point_image_to_ground(points - 1, metadata));
+    pos = ecf_to_geodetic(point_image_to_ground(points - 1, metadata, varargin{:}));
 catch
     pos = [];
 end
