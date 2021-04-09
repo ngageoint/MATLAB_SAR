@@ -755,7 +755,7 @@ if isfield(SICD_meta.ImageData,'ValidData')
     % test if we wanted to remove the toolbox dependency.
     % Note: ispolycw assumes Y indexing increases upward, but SICD rows
     % count from top downward, so we must flip sign of vertex_rows.
-    if ~isempty(ver('map')) && ~ispolycw(vertex_cols, -vertex_rows)
+    if ~isempty(ver('map')) && license('test','map_toolbox') && ~ispolycw(vertex_cols, -vertex_rows)
         validation_report = add_val_inc(validation_report, 'Error', ...
             'ImageData.ValidData vertices must be ordered clockwise.', ...
             'ImageData.ValidData vertices must be ordered clockwise.');
