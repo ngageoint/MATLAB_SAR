@@ -29,8 +29,8 @@ output_meta.SCPCOA.ARPPos.Z=ARP(3);
 
 %% SCP
 % MENSRB reference pixel indices are one-based, whereas SICD is zero-based.
-output_meta.ImageData.SCPPixel.Row=mensrb_struct.RP_COL-1;
-output_meta.ImageData.SCPPixel.Col=mensrb_struct.RP_ROW-1;
+output_meta.ImageData.SCPPixel.Row=mensrb_struct.RP_ROW-1;
+output_meta.ImageData.SCPPixel.Col=mensrb_struct.RP_COL-1;
 lat = latlonnum(mensrb_struct.RP_LOC(1:12));
 lon = latlonnum(mensrb_struct.RP_LOC(13:25));
 try % Undulation file may not exist on this system or be on our path

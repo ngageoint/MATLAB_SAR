@@ -30,8 +30,9 @@ elseif strcmp(cmetaa_struct.CG_MODEL,'WGS84')
     output_meta.GeoData.SCP.ECF.Y=scp_ecf(2);
     output_meta.GeoData.SCP.ECF.Z=scp_ecf(3);
 end
-output_meta.ImageData.SCPPixel.Row=cmetaa_struct.IF_DC_IS_COL;
-output_meta.ImageData.SCPPixel.Col=cmetaa_struct.IF_DC_IS_ROW;
+% These fields describe spatial frequency, not SCP.
+% output_meta.ImageData.SCPPixel.Row=cmetaa_struct.IF_DC_IS_COL;
+% output_meta.ImageData.SCPPixel.Col=cmetaa_struct.IF_DC_IS_ROW;
 % output_meta.Position.GRPPoly = output_meta.GeoData.SCP.ECF;
 if strcmp(cmetaa_struct.CG_MAP_TYPE,'GEOD')
     % Probably not in the right order
@@ -139,22 +140,18 @@ elseif strcmp(cmetaa_struct.CG_MODEL,'WGS84')
     output_meta.SCPCOA.ARPPos.Z=xyz(3);
 end
 % Position.ARPPoly can be populated later by derived_sicd_fields()
-if isfinite(cmetaa_struct.CG_SNVEL_X)&&cmetaa_struct.CG_SNVEL_X~=0
+if isfinite(cmetaa_struct.CG_SNVEL_X)&&cmetaa_struct.CG_SNVEL_X~=0 && ...
+        isfinite(cmetaa_struct.CG_SNVEL_Y)&&cmetaa_struct.CG_SNVEL_Y~=0 && ...
+        isfinite(cmetaa_struct.CG_SNVEL_Z)&&cmetaa_struct.CG_SNVEL_Z~=0
     output_meta.SCPCOA.ARPVel.X=cmetaa_struct.CG_SNVEL_X;
-end
-if isfinite(cmetaa_struct.CG_SNVEL_Y)&&cmetaa_struct.CG_SNVEL_Y~=0
     output_meta.SCPCOA.ARPVel.Y=cmetaa_struct.CG_SNVEL_Y;
-end
-if isfinite(cmetaa_struct.CG_SNVEL_Z)&&cmetaa_struct.CG_SNVEL_Z~=0
     output_meta.SCPCOA.ARPVel.Z=cmetaa_struct.CG_SNVEL_Z;
 end
-if isfinite(cmetaa_struct.CG_SNACC_X)&&cmetaa_struct.CG_SNACC_X~=0
+if isfinite(cmetaa_struct.CG_SNACC_X)&&cmetaa_struct.CG_SNACC_X~=0 && ...
+        isfinite(cmetaa_struct.CG_SNACC_Y)&&cmetaa_struct.CG_SNACC_Y~=0 && ...
+        isfinite(cmetaa_struct.CG_SNACC_Z)&&cmetaa_struct.CG_SNACC_Z~=0
     output_meta.SCPCOA.ARPAcc.X=cmetaa_struct.CG_SNACC_X;
-end
-if isfinite(cmetaa_struct.CG_SNACC_Y)&&cmetaa_struct.CG_SNACC_Y~=0
     output_meta.SCPCOA.ARPAcc.Y=cmetaa_struct.CG_SNACC_Y;
-end
-if isfinite(cmetaa_struct.CG_SNACC_Z)&&cmetaa_struct.CG_SNACC_Z~=0
     output_meta.SCPCOA.ARPAcc.Z=cmetaa_struct.CG_SNACC_Z;
 end
 if ~(isfield(output_meta,'SCPCOA')&&all(isfield(output_meta.SCPCOA,{'ARPPos','ARPVel'}))&&...

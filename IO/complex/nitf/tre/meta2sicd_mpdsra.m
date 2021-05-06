@@ -50,8 +50,8 @@ if exist('ORP_ECF','var')
     end
 end
 % MPDSRA ORP pixel indices are one-based, whereas SICD is zero-based.
-output_meta.ImageData.SCPPixel.Row=uint32(mpdsra_struct.ORP_COLUMN)-1;
-output_meta.ImageData.SCPPixel.Col=uint32(mpdsra_struct.ORP_ROW)-1;
+output_meta.ImageData.SCPPixel.Row=uint32(mpdsra_struct.ORP_ROW)-1;
+output_meta.ImageData.SCPPixel.Col=uint32(mpdsra_struct.ORP_COLUMN)-1;
 % Warning: This assumes PFA.
 if isfinite(mpdsra_struct.FOC_X)&&mpdsra_struct.FOC_X~=0&&...
         isfinite(mpdsra_struct.FOC_Y)&&mpdsra_struct.FOC_Y&&...
