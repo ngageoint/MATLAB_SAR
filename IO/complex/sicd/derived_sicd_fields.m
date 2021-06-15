@@ -708,7 +708,7 @@ if isfield(output_meta,'SCPCOA')&&all(isfield(output_meta.SCPCOA,{'ARPPos','ARPV
                                     (~isfield(output_meta.Grid,'Col') || ...
                                     ~isfield(output_meta.Grid.Col,'UVectECF'))))
                                 uRG = (SCP - ca_pos)/norm(SCP - ca_pos); % Range unit vector
-                                left = cross(ca_pos/norm(ca_pos),ca_vel/norm(ca_pos));
+                                left = cross(ca_pos/norm(ca_pos),ca_vel/norm(ca_vel));
                                 look = sign(left * uRG');
                                 spn=-look*cross(uRG,ca_vel); spn=spn/norm(spn); % Slant plane unit normal
                                 uAZ = cross(spn,uRG);
