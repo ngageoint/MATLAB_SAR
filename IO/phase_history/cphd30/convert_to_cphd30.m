@@ -15,11 +15,6 @@ function convert_to_cphd30( input_ph_filename, output_cphd_file, varargin )
 %                         to in the input file.  Valid options in CPHDX
 %                         version 3.0 are 'RE08I_IM08I', 'RE16I_IM16I', and
 %                         'RE32F_IM32F'.
-%       cphdi             Write raw, rather than compensated, phase history
-%                         to a CPHD file.  Of course, this option is only
-%                         possible for file formats that actually contain
-%                         raw, rather than compensated, phase history.
-%                         Default is false.
 %
 % Author: Wade Schwartzkopf, NGA/IDT
 %
@@ -33,44 +28,37 @@ ph_reader = open_ph_reader(input_ph_filename);
 cphd_meta = ph_reader.get_meta();
 p1 = inputParser;
 p1.KeepUnmatched=false;
-all_vectors = 1:cphd_meta.Data.ArraySize(1).NumVectors;
+all_vectors = 1:cphd_meta.Data.Channel(1).NumVectors;
 p1.addParamValue('pulse_indices', all_vectors, @(x) all(ismember(x,all_vectors)));
 p1.addParamValue('channels', 1, @(x) isscalar(x)&&ismember(x,1:cphd_meta.Data.NumCPHDChannels));
-p1.addParamValue('SampleType', cphd_meta.Data.SampleType, @ischar);
+p1.addParamValue('SampleType', cphd_meta.Data.SignalArrayFormat, @ischar);
 % Switching domain type not currently supported, but we leave a placeholder for this option
 % p1.addParamValue('DomainType', cphd_meta.Global.DomainType, ...
 %     @(x) sum(strcmp(x, {'FX','TOA'})==1));
 % Option to writes raw data instead of compensated into CPHD format
-p1.addParamValue('cphdi', false, @(x) isscalar(x)&&islogical(x)&&isfield(ph_reader,'read_raw'));
 p1.FunctionName = mfilename;
 p1.parse(varargin{:});
 % If we are changing any data, update metadata
 if ~any(strcmp('pulse_indices',p1.UsingDefaults))
-    cphd_meta.Data.ArraySize(p1.Results.channels).NumVectors = length(p1.Results.pulse_indices);
+    cphd_meta.Data.Channel(p1.Results.channels).NumVectors = length(p1.Results.pulse_indices);
 end
 if ~any(strcmp('SampleType',p1.UsingDefaults))
-    cphd_meta.Data.SampleType = p1.Results.SampleType;
+    cphd_meta.Data.SignalArrayFormat = p1.Results.SampleType;
 end    
 % Convert CPHD type string to MATLAB type string
-switch cphd_meta.Data.SampleType
-    case 'RE08I_IM08I'
+switch cphd_meta.Data.SignalArrayFormat
+    case 'CI2'
         matlab_type = 'int8';
-    case 'RE16I_IM16I'
+    case 'CI4'
         matlab_type = 'int16';
-    case 'RE32F_IM32F'
+    case 'CF8'
         matlab_type = 'float32';
     otherwise
         error('CONVERT_TO_CPHDX:UNRECOGNIZED_DATATYPE','Unrecognized data type.');
 end
 % Integer types need appropriate per-pulse scaling applied.  Add AmpSF
 % field if not already included.
-include_AmpSF0 = ~strcmp(cphd_meta.Data.SampleType,'RE32F_IM32F');
-% Are we reading raw or compensated data?
-if p1.Results.cphdi
-    read_function = ph_reader.read_raw;
-else
-    read_function = ph_reader.read_cphd;
-end
+include_AmpSF0 = ~strcmp(cphd_meta.Data.SignalArrayFormat,'CF8');
 
 %% Write CPHD preamble
 wb_handle=waitbar(0,'Converting to CPHD 3.0');
@@ -84,7 +72,7 @@ write_cphd_preamble(cphd_fid, meta2cphd30_cphdx(cphd_meta, p1.Results.channels),
 nb_byte_offset = ftell(cphd_fid);
 bytes_per_vector = 112; % Channel (4), vector (4), SRPPos (24), TxTime (8), TxPos (24), RcvTime (8), RcvPos (24), Fx0 (8), Fx_SS(8)
 if include_AmpSF0, bytes_per_vector = bytes_per_vector + 8; end; % AmpSF0
-nb_size_bytes = bytes_per_vector*cphd_meta.Data.ArraySize(p1.Results.channels).NumVectors;
+nb_size_bytes = bytes_per_vector*cphd_meta.Data.Channel(p1.Results.channels).NumVectors;
 fwrite(cphd_fid, zeros(nb_size_bytes,1), 'uint8');
 
 %% Write wideband pulse data
@@ -93,7 +81,7 @@ waitbar(0,wb_handle,'Converting to CPHD 3.0 (wideband)');
 for i=1:length(p1.Results.pulse_indices)
     fwrite(cphd_fid,p1.Results.channels-1,'uint32');
     fwrite(cphd_fid,i-1,'uint32');
-    current_pulse = read_function(p1.Results.pulse_indices(i),'all',p1.Results.channels);
+    current_pulse = ph_reader.read_cphd(p1.Results.pulse_indices(i),'all',p1.Results.channels);
     pulse_interleaved = zeros(2*length(current_pulse),1); % FWRITE doesn't
     pulse_interleaved(1:2:end)=real(current_pulse); % handle complex data.
     pulse_interleaved(2:2:end)=imag(current_pulse); % Interleave I and Q.
@@ -102,13 +90,13 @@ for i=1:length(p1.Results.pulse_indices)
         pulse_interleaved = pulse_interleaved/AmpSF(i);
     end
     fwrite(cphd_fid,pulse_interleaved,matlab_type);
-    waitbar(i/double(cphd_meta.Data.ArraySize(p1.Results.channels).NumVectors),wb_handle);
+    waitbar(i/double(cphd_meta.Data.Channel(p1.Results.channels).NumVectors),wb_handle);
 end
 
 %% Write per pulse metadata
 waitbar(0,wb_handle,'Converting to CPHD 3.0 (narrowband)');
 fseek(cphd_fid, nb_byte_offset, 'bof'); % Go back to location for narrowband data
-[wbdata, nbdata] = read_function(p1.Results.pulse_indices, [], p1.Results.channels);
+[wbdata, nbdata] = ph_reader.read_cphd(p1.Results.pulse_indices, [], p1.Results.channels);
 if include_AmpSF0
     nbdata.AmpSF = AmpSF;
 end
@@ -180,8 +168,8 @@ for i=1:length(nb_meta.TxTime)
     fwrite(fid,nb_meta.RcvPos(i,:),'double');
     fwrite(fid,nb_meta.TxTime(i),'double');
     fwrite(fid,nb_meta.RcvTime(i),'double');
-    fwrite(fid,nb_meta.Fx0(i),'double');
-    fwrite(fid,nb_meta.Fx_SS(i),'double');
+    fwrite(fid,nb_meta.SC0(i),'double');
+    fwrite(fid,nb_meta.SCSS(i),'double');
     if include_AmpSF0, fwrite(fid,nb_meta.AmpSF(i),'double'); end;
 end
 

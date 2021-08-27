@@ -60,7 +60,7 @@ if cphd_preamble.Interleaved % More generic read function
 else % This way is much faster though.
     all_nbdata = read_all_noninterleaved_nb();
 end
-all_nbdata.Fx0 = all_nbdata.Fx0 + ref_freq; % Adjust for reference frequency
+all_nbdata.SC0 = all_nbdata.SC0 + ref_freq; % Adjust for reference frequency
 meta=meta2cphdx_cphd30(cphd_preamble, all_nbdata); % Convert metadata to CPHDX format
 meta.native.cphd30 = cphd_preamble; % Save original format
 
@@ -184,14 +184,14 @@ readerobj.close=@() fclose(fid);
     function cphdx_fieldnames = convert_vb_fieldnames_to_cphdx(cphd30_fieldnames)
         cphdx_fieldnames = cphd30_fieldnames;
         % Converstion for CPHD 1.2 to CPHD 3.0
-        replace_fieldname('Fx1', 'Fx0');
+        replace_fieldname('Fx1', 'SC0');
         replace_fieldname('RxTime', 'RcvTime');
         replace_fieldname('RxPos', 'RcvPos');
         replace_fieldname('PulseNumber','VectorNumber');
         % Conversion from CPHD 3.0 to CPHDX
         replace_fieldname('SRP', 'SRPPos');
         replace_fieldname('AmpSF0', 'AmpSF');
-        replace_fieldname('FxStepSize', 'Fx_SS');
+        replace_fieldname('FxStepSize', 'SCSS');
         
         function replace_fieldname(old_fieldname, new_fieldname)
             indices_found = strcmp(old_fieldname,cphdx_fieldnames);

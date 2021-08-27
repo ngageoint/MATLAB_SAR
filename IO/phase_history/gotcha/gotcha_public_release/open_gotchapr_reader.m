@@ -44,10 +44,10 @@ all_nbdata.TxPos = zeros(total_num_pulses,3);
 all_nbdata.RcvTime = zeros(total_num_pulses,1); % Not available
 all_nbdata.RcvPos = zeros(total_num_pulses,3);
 all_nbdata.SRPPos = repmat(SRP_ECEF,total_num_pulses,1);
-all_nbdata.Fx0 = zeros(total_num_pulses,1);
-all_nbdata.Fx_SS = zeros(total_num_pulses,1);
-all_nbdata.Fx1 = min(data.freq)*ones(total_num_pulses,1);
-all_nbdata.Fx2 = max(data.freq)*ones(total_num_pulses,1);
+all_nbdata.SC0 = zeros(total_num_pulses,1);
+all_nbdata.SCSS = zeros(total_num_pulses,1);
+all_nbdata.FX1 = min(data.freq)*ones(total_num_pulses,1);
+all_nbdata.FX2 = max(data.freq)*ones(total_num_pulses,1);
 pulse_data = zeros(size(data.fp,1),total_num_pulses);
 
 % This reader will read and hold all pulse data in memory upon opening.
@@ -62,8 +62,8 @@ for az = 1:360
     load(fullfile(path,name)); % Load data in variable named 'data'
     num_pulses = size(data.fp,2);
     all_nbdata.TxPos(last_pulse+(1:num_pulses),:) = [data.x' data.y' (data.z + b)'];
-    all_nbdata.Fx0(last_pulse+(1:num_pulses)) = data.freq(1);
-    all_nbdata.Fx_SS(last_pulse+(1:num_pulses)) = mean(diff(data.freq));
+    all_nbdata.SC0(last_pulse+(1:num_pulses)) = data.freq(1);
+    all_nbdata.SCSS(last_pulse+(1:num_pulses)) = mean(diff(data.freq));
     pulse_data(:,last_pulse+(1:num_pulses)) = data.fp;
     
     last_pulse = last_pulse + num_pulses;
@@ -71,78 +71,55 @@ end
 all_nbdata.RcvPos = all_nbdata.TxPos; % Unique positions not given, so monostatic case assumed
 
 %% Setup CPHD XML metadata.
-% CollectionInfo
-cphd_meta.CollectionInfo.CollectorName = 'GOTCHA';
-cphd_meta.CollectionInfo.CoreName = 'GOTCHA_public_release_dataset';
-cphd_meta.CollectionInfo.CollectType = 'MONOSTATIC';
-cphd_meta.CollectionInfo.RadarMode.ModeType = 'SPOTLIGHT';
-cphd_meta.CollectionInfo.Classification = 'UNCLASSIFIED';
+% CollectionID
+cphd_meta.CollectionID.CollectorName = 'GOTCHA';
+cphd_meta.CollectionID.CoreName = 'GOTCHA_public_release_dataset';
+cphd_meta.CollectionID.CollectType = 'MONOSTATIC';
+cphd_meta.CollectionID.RadarMode.ModeType = 'SPOTLIGHT';
+cphd_meta.CollectionID.Classification = 'UNCLASSIFIED';
 
 % Data
-cphd_meta.Data.SampleType = 'RE32F_IM32F';
+cphd_meta.Data.SignalArrayFormat = 'CF8';
 cphd_meta.Data.NumCPHDChannels = 1;
-cphd_meta.Data.NumBytesVBP = 120;
-cphd_meta.Data.ArraySize.NumVectors = total_num_pulses;
-cphd_meta.Data.ArraySize.NumSamples = size(pulse_data,1);
+% cphd_meta.Data.NumBytesPVP = 120;  % Let this be derived
+cphd_meta.Data.Channel.NumVectors = total_num_pulses;
+cphd_meta.Data.Channel.NumSamples = size(pulse_data,1);
+cphd_meta.Data.Channel.SignalArrayByteOffset = 0;
+cphd_meta.Data.Channel.PVPArrayByteOffset = 0;
 
 % Global
 cphd_meta.Global.DomainType = 'FX';
-cphd_meta.Global.PhaseSGN = -1;
-cphd_meta.Global.RefFreqIndex = 0; % Actual value
-cphd_meta.Global.CollectStart = datenum(2006,1,1); % Actual date not given in public release data, but we know the year
+cphd_meta.Global.SGN = -1;
+cphd_meta.Global.Timeline.CollectStart = datenum(2006,1,1); % Actual date not given in public release data, but we know the year
 % The following times are totally bogus.  No time info given in this dataset.
-cphd_meta.Global.CollectDuration = 1;
-cphd_meta.Global.TxTime1 = 0;
-cphd_meta.Global.TxTime2 = 1;
+cphd_meta.Global.Timeline.TxTime1 = 0;
+cphd_meta.Global.Timeline.TxTime2 = 1;
+cphd_meta.Global.FxBand.FxMin=min(all_nbdata.SC0);
+cphd_meta.Global.FxBand.FxMax=max(all_nbdata.SC0+(all_nbdata.SCSS*size(pulse_data,1)));
 
 % Channel
-cphd_meta.Channel.Parameters.SRP_Index = 1;
-cphd_meta.Channel.Parameters.NomTOARateSF = 1; % TODO: What is this???
-cphd_meta.Channel.Parameters.FxCtrNom = mean(all_nbdata.Fx0) + ...
-    (mean(all_nbdata.Fx_SS)*size(pulse_data,1)/2);
-cphd_meta.Channel.Parameters.BWSavedNom = mean(all_nbdata.Fx_SS)*size(pulse_data,1);
+cphd_meta.Channel.FXFixedCPHD = true;
+cphd_meta.Channel.TOAFixedCPHD = true;
+cphd_meta.Channel.SRPFixedCPHD = true;
+cphd_meta.Channel.Parameters.FXFixed = true;
+cphd_meta.Channel.Parameters.TOAFixed = true;
+cphd_meta.Channel.Parameters.SRPFixed = true;
+cphd_meta.Channel.Parameters.SignalNormal = true;
+cphd_meta.Channel.Parameters.FxC = mean(all_nbdata.SC0) + ...
+    (mean(all_nbdata.SCSS)*size(pulse_data,1)/2);
+cphd_meta.Channel.Parameters.FxBW = mean(all_nbdata.SCSS)*size(pulse_data,1);
 % Maximum swath width support by sampling rate
-cphd_meta.Channel.Parameters.TOASavedNom = 1/mean(all_nbdata.Fx_SS);
+cphd_meta.Channel.Parameters.TOASaved = 1/mean(all_nbdata.SCSS);
     
 % SRP
-cphd_meta.SRP.SRPType = 'FIXEDPT';
-cphd_meta.SRP.NumSRPs = 1;
-cphd_meta.SRP.FIXEDPT.SRPPT.X = SRP_ECEF(1);
-cphd_meta.SRP.FIXEDPT.SRPPT.Y = SRP_ECEF(2);
-cphd_meta.SRP.FIXEDPT.SRPPT.Z = SRP_ECEF(3);
-
-% RadarCollection is not an actual formal CPHD field, but we steal it from
-% SICD for the purposes of the MATLAB SAR Toolbox framework.
-output_meta.RadarCollection.RefFreqIndex=uint32(0); % All frequencies are true values
-output_meta.RadarCollection.TxFrequency.Min=min(all_nbdata.Fx0);
-output_meta.RadarCollection.TxFrequency.Max=max(all_nbdata.Fx0+(all_nbdata.Fx_SS*size(pulse_data,1)));
-output_meta.RadarCollection.Waveform.WFParameters.TxRFBandwidth=mean(all_nbdata.Fx_SS*size(pulse_data,1));
-output_meta.RadarCollection.Waveform.WFParameters.TxFreqStart=...
-    output_meta.RadarCollection.TxFrequency.Min;
-% These fields aren't given in the GOTCHA public release dataset.  We could
-% fabricate something, but for now we just leave them empty.
-% output_meta.RadarCollection.Waveform.WFParameters.TxPulseLength=;
-% output_meta.RadarCollection.Waveform.WFParameters.TxFMRate=...
-%     output_meta.RadarCollection.Waveform.WFParameters.TxRFBandwidth/...
-%     output_meta.RadarCollection.Waveform.WFParameters.TxPulseLength;
-% output_meta.RadarCollection.Waveform.WFParameters.ADCSampleRate=;
-% output_meta.RadarCollection.Waveform.WFParameters.RcvWindowLength=size(pulse_data,1)/...
-%     output_meta.RadarCollection.Waveform.WFParameters.ADCSampleRate;
+cphd_meta.ReferenceGeometry.SRP.ECF.X = SRP_ECEF(1);
+cphd_meta.ReferenceGeometry.SRP.ECF.Y = SRP_ECEF(2);
+cphd_meta.ReferenceGeometry.SRP.ECF.Z = SRP_ECEF(3);
 
 % Antenna
 % No antenna information given in this dataset, so this required structure
 % cannot be filled out.
 
-% VectorParameters
-cphd_meta.VectorParameters.TxTime = 8; % Not available
-cphd_meta.VectorParameters.TxPos = 24;
-cphd_meta.VectorParameters.RcvTime = 8; % Not available
-cphd_meta.VectorParameters.RcvPos = 24;
-cphd_meta.VectorParameters.SRPPos = 24;
-cphd_meta.VectorParameters.FxParameters.Fx0 = 8;
-cphd_meta.VectorParameters.FxParameters.Fx_SS = 8;
-cphd_meta.VectorParameters.FxParameters.Fx1 = 8;
-cphd_meta.VectorParameters.FxParameters.Fx2 = 8;
 
 %% Setup reader object
 readerobj.read_cphd=@read_data; 
@@ -153,10 +130,10 @@ readerobj.close=@() 1;
     function [wbvectors, nbdata] = read_data(pulse_indices, sample_indices, channels)
         % Parse input parameters
         if (nargin<1)||strcmpi(pulse_indices,'all')
-            pulse_indices=1:cphd_meta.Data.ArraySize.NumVectors;
+            pulse_indices=1:cphd_meta.Data.Channel.NumVectors;
         end
         if (nargin<2)||strcmpi(sample_indices,'all')
-            sample_indices=1:cphd_meta.Data.ArraySize.NumSamples;
+            sample_indices=1:cphd_meta.Data.Channel.NumSamples;
         end
         % Only one channel per directory, so we ignore the channel
         % parameter.  We could in theory setup the reader so that each

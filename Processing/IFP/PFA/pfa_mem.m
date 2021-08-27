@@ -59,8 +59,8 @@ ipn=look*cross(srv,arp_coa_vel); ipn=ipn/norm(ipn); % Slant plane unit normal
 rf_to_rad = (2/SPEED_OF_LIGHT) .* ... % Convert from cycles/second to cycles/meter
     k_sf .* ... % Compensate for out-of-plane motion by projecting into image formation plane
     bi_freq_scale; % For bistatic collects, a factor to account for using the equivalent monostatic position
-k_r0 = nbdata.Fx0 .* rf_to_rad; % Radial position of the first sample in each pulse
-k_r_ss = nbdata.Fx_SS .* rf_to_rad; % Radial position spacings between the samples in each pulse
+k_r0 = nbdata.SC0 .* rf_to_rad; % Radial position of the first sample in each pulse
+k_r_ss = nbdata.SCSS .* rf_to_rad; % Radial position spacings between the samples in each pulse
 % Compute new coordinates onto which to interpolate
 [k_v_bounds, k_u_bounds] = pfa_inscribed_rectangle_coords(k_a, k_r0, ...
     k_r_ss * (size(phase_history,1)-1));

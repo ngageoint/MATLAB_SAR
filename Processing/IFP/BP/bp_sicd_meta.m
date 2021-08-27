@@ -103,12 +103,12 @@ switch ifp_params.grid_type
         sicdmeta.Grid.ImagePlane = 'OTHER';
         sicdmeta.Grid.Type = 'OTHER';
 end
-pulse_bandwidth = nbdata.Fx_SS * (numel(ifp_params.sample_range)-1);
-subset_Fx0 = nbdata.Fx0 + (nbdata.Fx_SS * double(ifp_params.sample_range(1)-1));
+pulse_bandwidth = nbdata.SCSS * (numel(ifp_params.sample_range)-1);
+subset_Fx0 = nbdata.SC0 + (nbdata.SCSS * double(ifp_params.sample_range(1)-1));
 resolution = pulse_info_to_resolution_extent(...
     nbdata.TxPos - nbdata.SRPPos,... % Line-of-site vectors
     subset_Fx0 + (pulse_bandwidth/2),... % Center frequency
-    nbdata.Fx_SS,... % Frequency step size
+    nbdata.SCSS,... % Frequency step size
     pulse_bandwidth); % Bandwidth
 if isempty(ifp_params.grid) % If arbitrary grid is passed, none of the following is valid
     sicdmeta.Grid.Row.SS  = ifp_params.image_size_meters(1)/sicdmeta.ImageData.NumRows;

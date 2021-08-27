@@ -45,10 +45,10 @@ function grid_params = bp_parse_grid_params( per_pulse_metadata, num_samples_use
 % //////////////////////////////////////////
 
 % Calculate default image extent and supported resolution (in slant plane)
-pulse_bandwidth = per_pulse_metadata.Fx_SS * (num_samples_used-1);
+pulse_bandwidth = per_pulse_metadata.SCSS * (num_samples_used-1);
 [max_resolution, max_extent] = pulse_info_to_resolution_extent(...
     per_pulse_metadata.TxPos - per_pulse_metadata.SRPPos, ... % Line-of-sight vector between ARP and ORP
-    per_pulse_metadata.Fx0 + (pulse_bandwidth/2), per_pulse_metadata.Fx_SS, ...
+    per_pulse_metadata.SC0 + (pulse_bandwidth/2), per_pulse_metadata.SCSS, ...
     pulse_bandwidth);
 
 % Parse input parameters

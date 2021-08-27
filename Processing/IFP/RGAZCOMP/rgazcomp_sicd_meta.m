@@ -25,7 +25,7 @@ function [sicdmeta] = rgazcomp_sicd_meta(meta, nbdata, ifp_params)
 sicdmeta = meta2sicd_cphdx(meta,nbdata,ifp_params.channel);
 
 % Image Creation
-sicdmeta.ImageCreation.DateTime = datestr(now());
+sicdmeta.ImageCreation.DateTime = now();
 sicdmeta.ImageCreation.Profile  = 'rgazcomp_sicd_meta.m';
 
 % ImageData
@@ -54,19 +54,19 @@ sicdmeta.GeoData.SCP.LLH.HAE=scp_lla(3);
 % ImageFormation
 sicdmeta.ImageFormation.RcvChanProc.NumChanProc = 1; % This function only handles single-channel data
 sicdmeta.ImageFormation.RcvChanProc.ChanIndex = ifp_params.channel;
-if isfield(meta, 'RadarCollection') && ...
-        isfield(meta.RadarCollection, 'RcvChannels') && ...
-        isfield(meta.RadarCollection.RcvChannels, 'ChanParameters') && ...
-        isfield(meta.RadarCollection.RcvChannels.ChanParameters, 'TxRcvPolarization')
-    sicdmeta.ImageFormation.TxRcvPolarizationProc = ...
-        meta.RadarCollection.RcvChannels.ChanParameters(ifp_params.channel).TxRcvPolarization;
-end
 sicdmeta.ImageFormation.TStartProc = nbdata.TxTime(1);
 sicdmeta.ImageFormation.TEndProc = nbdata.TxTime(end);
+if isfield(meta.Channel,'Parameters') && ...
+        isfield(meta.Channel.Parameters(ifp_params.channel),'Polarization') && ...
+        all(isfield(meta.Channel.Parameters(ifp_params.channel).Polarization,{'TxPol','RcvPol'}))
+    sicdmeta.ImageFormation.TxRcvPolarizationProc = ...
+        [meta.Channel.Parameters(ifp_params.channel).Polarization.TxPol ':' ...
+            meta.Channel.Parameters(ifp_params.channel).Polarization.RcvPol];
+end
 sicdmeta.ImageFormation.TxFrequencyProc.MinProc = ...
-    min(nbdata.Fx0 + (nbdata.Fx_SS * double(min(ifp_params.sample_range)-1)));
+    min(nbdata.SC0 + (nbdata.SCSS * double(min(ifp_params.sample_range)-1)));
 sicdmeta.ImageFormation.TxFrequencyProc.MaxProc = ...
-    max(nbdata.Fx0 + (nbdata.Fx_SS * double(max(ifp_params.sample_range)-1)));
+    max(nbdata.SC0 + (nbdata.SCSS * double(max(ifp_params.sample_range)-1)));
 sicdmeta.ImageFormation.ImageFormAlgo = 'RGAZCOMP';
 sicdmeta.ImageFormation.STBeamComp = 'NO';
 sicdmeta.ImageFormation.ImageBeamComp = 'NO';
@@ -82,11 +82,11 @@ sicdmeta.Grid.TimeCOAPoly = polyval(cV2T,v_coa,[],mu);
 
 % We assume constant Fx0 and Fx_SS across all vectors here (checked in rgazcomp_file.m)
 s_coa = mean(double([min(ifp_params.sample_range), max(ifp_params.sample_range)]));
-fx_coa = nbdata.Fx0(round(v_coa)) + nbdata.Fx_SS(round(v_coa)) * (s_coa - 1);
+fx_coa = nbdata.SC0(round(v_coa)) + nbdata.SCSS(round(v_coa)) * (s_coa - 1);
 krg_coa = (2/SPEED_OF_LIGHT) * fx_coa;
 % Assumes sample_range is regularly spaced samples (checked in rgazcomp_file.m)
 fx_ss_sf = mean(diff(ifp_params.sample_range)); % Scale factor for sample spacing and Fx_SS
-krg_ss = (2/SPEED_OF_LIGHT) * nbdata.Fx_SS(round(v_coa)) * fx_ss_sf;
+krg_ss = (2/SPEED_OF_LIGHT) * nbdata.SCSS(round(v_coa)) * fx_ss_sf;
 
 % Grid.Row
 sicdmeta.Grid.Row.Sgn=-1; % We use an IFFT

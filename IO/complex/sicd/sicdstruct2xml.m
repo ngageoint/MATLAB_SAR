@@ -19,7 +19,7 @@ p1 = inputParser;
 p1.KeepUnmatched=true;
 p1.addParamValue('inc_newline',true);
 p1.addParamValue('inc_class_attributes', false, @(x) isscalar(x)&&islogical(x));
-p1.addParamValue('file_type','SICD',@(x) any(strcmp(x,{'SICD','CPHD'})));
+p1.addParamValue('file_type','SICD',@(x) any(strcmp(x,{'SICD','CPHD','CRSD'})));
 p1.parse(varargin{:});
 
 % Create XML
@@ -28,19 +28,21 @@ root_node = doc.getDocumentElement;
 switch p1.Results.file_type
     case 'SICD'
         schema_filename = which('SICD_schema_V1.2.1_2018_12_13.xsd');
-        root_node.setAttribute('xmlns','urn:SICD:1.2.1');
         % SICD version also written in write_nitf_dessubhdr.m
     case 'CPHD'
-        schema_filename = which('CPHD_schema_V0.3.xsd');
-        root_node.setAttribute('xmlns','urn:CPHD:0.3.0');
-    % case 'SIDD' % Might add this later
+        schema_filename = which('CPHD_schema_V1.0.1_2018_05_21.xsd');
+    case 'CRSD'
+        schema_filename = which('CRSD_schema_V1.0.0_2021_06_12.xsd');
 end
 if ~isempty(schema_filename)
     % The schema XSD contains data type information for each field in the
     % XML metadata.
     schema_info = parse_sicd_schema(schema_filename);
 else
-    schema_info = struct('types',[],'master',[]);
+    schema_info = struct('ns',[],'types',[],'master',[]);
+end
+if ~isempty(schema_info.ns)
+    root_node.setAttribute('xmlns',schema_info.ns);
 end
 sicdstruct2xml_recurse(root_node, sicdmeta, schema_info.master);
 xmlstr = xmlwrite(root_node);
@@ -193,7 +195,7 @@ end
                 sicdstruct2xml_recurse(child_node, sicdmeta, schema_struct);
                 if (isfield(schema_struct,'SCHEMA_attributes') && ...
                         any(strcmp('index',schema_struct.SCHEMA_attributes))) || ...
-                        (exist('index','var') && ~strcmp(node_name,{'GeoInfo'}))
+                        (isempty(schema_struct) && exist('index','var') && ~strcmp(node_name,{'GeoInfo'}))
                     if ~exist('index','var')
                         index = 1;
                     end
@@ -248,7 +250,7 @@ end
                             end
                         case 'xs:double'
                             str = num2str(sicdmeta,'%.15E');
-                        case 'xs:int'
+                        case {'xs:int', 'xs:integer', 'xs:positiveInteger', 'xs:nonNegativeInteger'}
                             str = num2str(sicdmeta,'%d');
                         case 'xs:dateTime'
                             if isa(sicdmeta,'double')

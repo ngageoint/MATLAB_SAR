@@ -22,7 +22,9 @@ root_node=dom_node.getDocumentElement;
 switch char(root_node.getNodeName)
     % Look for appropriate schema file in path
     case 'CPHD'
-        schema_filename = which('CPHD_schema_V0.3.xsd');
+        schema_filename = which('CPHD_schema_V1.0.1_2018_05_21.xsd');
+    case 'CRSD'
+        schema_filename = which('CRSD_schema_V1.0.0_2021_06_12.xsd');
     case 'SICD'
         schema_filename = which('SICD_schema_V1.1.0_2014_09_30.xsd');
     % case 'SIDD' % Might add this later
@@ -43,9 +45,13 @@ end
 output_struct = recursfun_xml(root_node, schema_info.master); % Begin processing on root node
 if root_node.hasAttribute('xmlns') % Extract and save SICD version
     vers_str=char(root_node.getAttribute('xmlns'));
-    if ~isempty(strfind(vers_str,'SICD'))
-        output_struct.SICDVersion=vers_str(10:end);  % 'urn:SICD:'
-        output_struct=sicd_update_meta(output_struct, output_struct.SICDVersion);
+    vers_str=regexp(vers_str,'(0|[1-9]\d*)(\.(0|[1-9]\d*)){0,3}$','match');
+    output_struct.Version=vers_str{1};
+    switch char(root_node.getNodeName)
+        case 'SICD'
+            output_struct=sicd_update_meta(output_struct, output_struct.Version);
+        case 'CPHD'
+            output_struct=cphd_update_meta(output_struct, output_struct.Version);
     end
 end
 
@@ -121,10 +127,18 @@ end
                         end
                         current_struct(index1,index2)=recursfun_xml(current_child, child_schema_struct);
                     elseif exist('current_struct','var')&&isfield(current_struct,current_name) % Unordered elements with common name
-                        if ~iscell(current_struct.(current_name)) % Convert to cell array if not already done
-                            current_struct.(current_name)={current_struct.(current_name)};
+                        if isfield(child_schema_struct,'Identifier')
+                            % CPHD removed has almost no "index" attributes
+                            % but a number these named identifiers for
+                            % lists.
+                            current_struct.(current_name) = [current_struct.(current_name) ...
+                                recursfun_xml(current_child, child_schema_struct)];
+                        else
+                            if ~iscell(current_struct.(current_name)) % Convert to cell array if not already done
+                                current_struct.(current_name)={current_struct.(current_name)};
+                            end
+                            current_struct.(current_name){end+1}=recursfun_xml(current_child, child_schema_struct); % Append to end
                         end
-                        current_struct.(current_name){end+1}=recursfun_xml(current_child, child_schema_struct); % Append to end
                     else % First (and maybe only) element with this tag
                         current_struct.(current_name)=recursfun_xml(current_child, child_schema_struct);
                     end
@@ -147,8 +161,10 @@ end
                                     current_struct=in_string; % Do nothing.  Already a string
                                 case 'xs:double'
                                     current_struct=str2double(in_string);
-                                case 'xs:int'
+                                case {'xs:int','xs:integer'}
                                     current_struct=int32(str2double(in_string));
+                                case {'xs:positiveInteger', 'xs:nonNegativeInteger'}
+                                    current_struct=uint32(str2double(in_string));
                                 case 'xs:dateTime'
                                     % Convert to MATLAB serial date number
                                     temp_str=in_string;

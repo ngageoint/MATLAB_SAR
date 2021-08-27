@@ -13,13 +13,14 @@ function [ schema_struct ] = parse_sicd_schema( filename )
 % Open file
 schema_root = xmlread(filename);
 schema_root = schema_root.getDocumentElement;
+schema_struct.ns = char(schema_root.getAttribute('xmlns'));
 
 % Separate type definitions and master structure definition
 for i=1:schema_root.getLength
     child=schema_root.item(i-1);
     if child.getNodeType == child.ELEMENT_NODE
         switch char(child.getNodeName)
-            case {'xs:simpleType','xs:complexType'} % Type definitions
+            case {'xs:simpleType','xs:complexType','xs:group'} % Type definitions
                 schema_struct.types.(char(child.getAttribute('name'))) = recursfun_schema(child);
             case 'xs:element' % Master node (should be onle one)
                 schema_struct.master = recursfun_schema(child);
@@ -48,7 +49,7 @@ end
                         output_struct = recursfun_schema(current_child); % Adds any attributes
                         output_struct.SCHEMA_type = char(current_child.getAttribute('base'));
                     case {'xs:simpleType','xs:simpleContent',...
-                            'xs:complexType','xs:complexContent'}
+                            'xs:complexType','xs:complexContent','xs:group'}
                         output_struct = recursfun_schema(current_child);
                     case {'xs:sequence','xs:choice','xs:all'}
                         output_struct = setstructfields(output_struct, recursfun_schema(current_child));
@@ -61,7 +62,9 @@ end
                             output_struct.SCHEMA_attributes = ...
                                 {char(current_child.getAttribute('name'))};
                         end
-                    case {'xs:minInclusive','xs:maxInclusive','xs:enumeration'}
+                    case {'xs:minInclusive','xs:maxInclusive',...
+                            'xs:minExclusive','xs:maxExclusive',...
+                            'xs:enumeration','xs:pattern'}
                         % These fields are expected, but we don't use them
                         % for anything.
                     otherwise

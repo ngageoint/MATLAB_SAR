@@ -6,9 +6,13 @@ function meta = derived_phd_fields(meta,nbdata)
 %these fields will generally be if an image is formed.
 
 %set up fields to call derived_sicd_fields to populate SCPCOA
-meta.GeoData.SCP.ECF.X = nbdata.SRPPos(2,1);
-meta.GeoData.SCP.ECF.Y = nbdata.SRPPos(2,2);
-meta.GeoData.SCP.ECF.Z = nbdata.SRPPos(2,3);
+if isfield(nbdata,'SRPPos')
+    meta.GeoData.SCP.ECF.X = nbdata.SRPPos(2,1);
+    meta.GeoData.SCP.ECF.Y = nbdata.SRPPos(2,2);
+    meta.GeoData.SCP.ECF.Z = nbdata.SRPPos(2,3);
+elseif isfield(meta,'ReferenceGeometry') && isfield(meta.ReferenceGeometry,'CRP')
+    meta.GeoData.SCP = meta.ReferenceGeometry.CRP;
+end
 
 meta.SCPCOA.ARPPos.X = nbdata.RcvPos(2,1);
 meta.SCPCOA.ARPPos.Y = nbdata.RcvPos(2,2);
@@ -25,7 +29,7 @@ meta.Timeline.CollectDuration = nbdata.TxTime(end) - nbdata.TxTime(1);
 meta.Timeline.IPP.Set.TStart = nbdata.TxTime(1);
 meta.Timeline.IPP.Set.TEnd = nbdata.TxTime(end);
 meta.Timeline.IPP.Set.IPPStart = 1;
-meta.Timeline.IPP.Set.IPPEnd = meta.Data.ArraySize.NumVectors;
+meta.Timeline.IPP.Set.IPPEnd = meta.Data.Channel.NumVectors;
 
 meta = derived_sicd_fields(meta);
 

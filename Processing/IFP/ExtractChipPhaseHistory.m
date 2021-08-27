@@ -66,8 +66,8 @@ end
 % Get the narrowband data  
 reader_obj = open_ph_reader(cphd_filename);
 meta = reader_obj.get_meta();
-N = double(meta.Data.ArraySize(channel).NumVectors);
-M = double(meta.Data.ArraySize(channel).NumSamples);  % num_samples per pulse
+N = double(meta.Data.Channel(channel).NumVectors);
+M = double(meta.Data.Channel(channel).NumSamples);  % num_samples per pulse
 [ignore, all_nb] = reader_obj.read_cphd(1:N,[],1);
 all_nb.ARP = (all_nb.TxPos + all_nb.RcvPos)/2; % Aperture reference position (nearly monostatic assumption)
 % This function assumes spotlight data.
@@ -80,8 +80,8 @@ end
 % Determine some collection parameters
 [resolution, extent, delta_azimuth, total_azimuth] = pulse_info_to_resolution_extent(...
     all_nb.ARP([1 end],:) - all_nb.SRPPos([1 end],:), ... % Line-of-sight vector between ARP and SRP
-    max(all_nb.Fx0  + (all_nb.Fx_SS * (M-1))),... % Highest frequency sample (which has the least azimuth extent, so most conservative)
-    max(all_nb.Fx_SS),... % Largest sample spacing (which has the least range extent)-- although we don't use it here
+    max(all_nb.SC0  + (all_nb.SCSS * (M-1))),... % Highest frequency sample (which has the least azimuth extent, so most conservative)
+    max(all_nb.SCSS),... % Largest sample spacing (which has the least range extent)-- although we don't use it here
     [],... % This parameter should be bandwidth, but we don't need it here, since we aren't using resolution.
     N);
 
@@ -141,7 +141,7 @@ else % For other areas (or volumes), this computation would have to change.
 end
 
 % Determine range parameters
-range_extent = c/(2*max(all_nb.Fx_SS));  % range profile extent (for pulse with the least extent)
+range_extent = c/(2*max(all_nb.SCSS));  % range profile extent (for pulse with the least extent)
 rc_vec = fft_bin_pos_vec(M) * range_extent;  % Distance of each range bin from SRP
 rc_ndx = find(abs(rc_vec) <= image_span_distance/2);  % range extraction indices
 % These indices extract at least the range width needed to cover the
@@ -180,7 +180,7 @@ for pbDx = 1:NumBlocks
            sqrt(sum((all_nb.ARP(pDx,:).' - all_nb.SRPPos(pDx,:).').^2));
         
     % Calculate frequency vector for each pulse: Fx0+Fx_SS*(0:M-1)
-    f_orig = bsxfun(@plus,all_nb.Fx0(pDx).',(0:M-1).'*all_nb.Fx_SS(pDx).');
+    f_orig = bsxfun(@plus,all_nb.SC0(pDx).',(0:M-1).'*all_nb.SCSS(pDx).');
     k_orig = 2*pi*f_orig/c;
 
     % Adjust phase reference (re-mocomp to new scene reference point)
@@ -199,10 +199,10 @@ for pbDx = 1:NumBlocks
     % Generate plot comparisons for data from a single pulse
     if (verification_pulse ~= 0) && any(pDx == verification_pulse)
         % Recompute so we are using Fx_SS of this specific pulse, not max(Fx_SS)
-        range_extent_orig = c/(2*all_nb.Fx_SS(verification_pulse));
+        range_extent_orig = c/(2*all_nb.SCSS(verification_pulse));
         rc_vec_orig = fft_bin_pos_vec(M) * range_extent_orig;
         % Compute extent and range profile of trimmed pulse
-        range_extent_new = c/(2*all_nb.Fx_SS(verification_pulse)*M/M_new);
+        range_extent_new = c/(2*all_nb.SCSS(verification_pulse)*M/M_new);
         rc_vec_new = fft_bin_pos_vec(M_new) * range_extent_new;
         rc_new = ifft(phd_trimmed_rangeonly(:,verification_pulse));
         % Compare pre- and post- trimming
@@ -302,10 +302,10 @@ cphd_nb.RcvTime = time_interp;
 cphd_nb.RcvPos = ARP_interp;
 cphd_nb.SRPPos = repmat(SRP_new(:).',[N_new 1]);
 % Interpolation along Fx probably isn't valid if Fx values jitter.
-cphd_nb.Fx0 = interp1(1:N,all_nb.Fx0,linspace(1,N,N_new).','spline');
-cphd_nb.Fx_SS = interp1(1:N,all_nb.Fx_SS*(M/M_new),linspace(1,N,N_new).','spline');
-cphd_nb.Fx1 = interp1(1:N,all_nb.Fx1,linspace(1,N,N_new).','spline');
-cphd_nb.Fx2 = interp1(1:N,all_nb.Fx2,linspace(1,N,N_new).','spline');
+cphd_nb.SC0 = interp1(1:N,all_nb.SC0,linspace(1,N,N_new).','spline');
+cphd_nb.SCSS = interp1(1:N,all_nb.SCSS*(M/M_new),linspace(1,N,N_new).','spline');
+cphd_nb.FX1 = interp1(1:N,all_nb.FX1,linspace(1,N,N_new).','spline');
+cphd_nb.FX2 = interp1(1:N,all_nb.FX2,linspace(1,N,N_new).','spline');
 
 end
 

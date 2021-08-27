@@ -37,9 +37,9 @@ for i=1:length(filenames)
                     read_fun = reader_obj.read_cphd;
                 end
                 [~, vbmeta] = read_fun([1 ...
-                    round(meta.Data.ArraySize(1).NumVectors/2) ...
-                    round(meta.Data.ArraySize(1).NumVectors/2) + 1 ...
-                    meta.Data.ArraySize(1).NumVectors],[]); %first, last and two center pulses (to get velocity)
+                    round(meta.Data.Channel(1).NumVectors/2) ...
+                    round(meta.Data.Channel(1).NumVectors/2) + 1 ...
+                    meta.Data.Channel(1).NumVectors],[]); %first, last and two center pulses (to get velocity)
             end
             meta = derived_phd_fields(meta,vbmeta);
         catch
@@ -53,6 +53,8 @@ for i=1:length(filenames)
             case 'Corename'
                 if isfield(meta,'CollectionInfo') && isfield(meta.CollectionInfo,'CoreName')
                     Temp.Corename = meta.CollectionInfo.CoreName;                    
+                elseif isfield(meta,'CollectionID') && isfield(meta.CollectionID,'CoreName')
+                    Temp.Corename = meta.CollectionID.CoreName;                    
                 else
                     Temp.Corename = '';
                 end
@@ -91,6 +93,9 @@ for i=1:length(filenames)
                     Temp.CollectTime = datestr(meta.Timeline.CollectStart);
                 elseif isfield(meta,'Global') && isfield(meta.Global,'CollectStart')
                     Temp.CollectTime = datestr(meta.Global.CollectStart);
+                elseif isfield(meta,'Global') && isfield(meta.Global,'Timeline') && ...
+                        isfield(meta.Global.Timeline,'CollectionStart')
+                    Temp.CollectTime = datestr(meta.Global.Timeline.CollectionStart);
                 else
                     Temp.CollectTime = '';
                 end
@@ -142,6 +147,9 @@ for i=1:length(filenames)
                 if isfield(meta,'CollectionInfo') && isfield(meta.CollectionInfo,'RadarMode') && ...
                    isfield(meta.CollectionInfo.RadarMode,'ModeType')
                     Temp.RadarMode = meta.CollectionInfo.RadarMode.ModeType;
+                elseif isfield(meta,'CollectionID') && isfield(meta.CollectionID,'RadarMode') && ...
+                   isfield(meta.CollectionID.RadarMode,'ModeType')
+                    Temp.RadarMode = meta.CollectionID.RadarMode.ModeType;
                 else
                     Temp.RadarMode = '';
                 end
@@ -152,6 +160,14 @@ for i=1:length(filenames)
                        isfield(meta.RadarCollection.RcvChannels,'ChanParameters') && ...
                        isfield(meta.RadarCollection.RcvChannels.ChanParameters(1),'TxRcvPolarization')
                     Temp.Polarization = meta.RadarCollection.RcvChannels.ChanParameters(1).TxRcvPolarization;
+                elseif isfield(meta,'Channel') && isfield(meta.Channel,'Parameters') && ...
+                        isfield(meta.Channel.Parameters,'Polarization') && ...
+                        all(isfield(meta.Channel.Parameters(1).Polarization,{'TxPol','RcvPol'}))
+                    Temp.Polarization = [meta.Channel.Parameters(1).Polarization.TxPol ...
+                        ':' meta.Channel.Parameters(1).Polarization.RcvPol];
+                elseif isfield(meta,'Channel') && isfield(meta.Channel,'Parameters') && ...
+                        isfield(meta.Channel.Parameters,'RcvPol')
+                    Temp.Polarization = meta.Channel.Parameters(1).RcvPol;
                 else                    
                     Temp.Polarization = '';
                 end
@@ -294,9 +310,9 @@ for i=1:length(filenames)
                     Temp.RxWindowLength = '';
                 end
             case 'NumPulses'
-                if isfield(meta,'Data') && isfield(meta.Data,'ArraySize') && ...
-                   isfield(meta.Data.ArraySize,'NumVectors')
-                    Temp.NumPulses = meta.Data.ArraySize.NumVectors;
+                if isfield(meta,'Data') && isfield(meta.Data,'Channel') && ...
+                   isfield(meta.Data.Channel,'NumVectors')
+                    Temp.NumPulses = meta.Data.Channel.NumVectors;
                 elseif isfield(meta,'Timeline') && isfield(meta.Timeline,'IPP') && ...
                         isfield(meta.Timeline.IPP,'Set') && ...
                         isfield(meta.Timeline.IPP.Set,'IPPEnd')
@@ -305,9 +321,9 @@ for i=1:length(filenames)
                     Temp.NumPulses = '';
                 end
             case 'NumSamples'
-                if isfield(meta,'Data') && isfield(meta.Data,'ArraySize') && ...
-                   isfield(meta.Data.ArraySize,'NumSamples')
-                    Temp.NumSamples = meta.Data.ArraySize.NumSamples;
+                if isfield(meta,'Data') && isfield(meta.Data,'Channel') && ...
+                   isfield(meta.Data.Channel,'NumSamples')
+                    Temp.NumSamples = meta.Data.Channel.NumSamples;
                 elseif isfield(meta,'RadarCollection') && isfield(meta.RadarCollection,'Waveform') && ...
                    isfield(meta.RadarCollection.Waveform,'WFParameters') && ...
                    all(isfield(meta.RadarCollection.Waveform.WFParameters,{'ADCSampleRate','RcvWindowLength'}))

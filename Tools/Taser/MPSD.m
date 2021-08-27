@@ -49,7 +49,9 @@ function [freq,mpsd_out] = MPSD(filename,PlotFlag,StartPulse,StopPulse,Stride,Pr
 % /// CLASSIFICATION: UNCLASSIFIED       ///
 % //////////////////////////////////////////
 
-CHANNEL = 1; % Assume first channel if multi-channel dataset
+if ~exist('Channel','var')
+    Channel = 1; % Assume first channel if multi-channel dataset
+end
 
 %% Ask for filename if not passed in
 if ~exist( 'filename', 'var' )||isempty(filename)
@@ -70,18 +72,21 @@ else
 end
 % Extract relevant metadata
 meta = reader_obj.get_meta();
-NumChannels = meta.Data.NumCPHDChannels;
-NumSamples = meta.Data.ArraySize.NumSamples;
-IID = meta.CollectionInfo.CoreName;
-sampling_rate =  meta.RadarCollection.Waveform.WFParameters.ADCSampleRate;
-chirp = strcmpi('CHIRP',meta.RadarCollection.Waveform.WFParameters.RcvDemodType);
+if ~meta.Channel.Parameters(Channel).DemodFixed
+    error('MPSD:VARIABLE_DEMOD','Fixed demod required.');
+end
+[~, nbdata] = reader_obj.read_raw(1,1,Channel);
+NumChannels = meta.Data.NumCRSDChannels;
+NumSamples = meta.Data.Channel(Channel).NumSamples;
+IID = meta.CollectionID.CoreName;
+sampling_rate =  meta.Channel.Parameters(Channel).Fs;
+chirp = (nbdata.FICRate==0);
 if chirp
-    fc = meta.RadarCollection.Waveform.WFParameters.RcvFreqStart;
-    freq = linspace(fc-sampling_rate/2,fc+sampling_rate/2,meta.Data.ArraySize(CHANNEL).NumSamples);
+    fc = meta.Channel.Parameters(Channel).F0Ref + nbdata.DFIC0;
+    freq = linspace(fc-sampling_rate/2,fc+sampling_rate/2,meta.Data.Channel(Channel).NumSamples);
 else
-    deramp_rate = meta.RadarCollection.Waveform.WFParameters.RcvFMRate;
-    freq = meta.RadarCollection.Waveform.WFParameters.RcvFreqStart + ...
-        ((0:(double(meta.Data.ArraySize(CHANNEL).NumSamples)-1))' * deramp_rate / sampling_rate);
+    freq = meta.Channel.Parameters(Channel).F0Ref + nbdata.DFIC0 + ...
+        ((0:(double(meta.Data.Channel(Channel).NumSamples)-1))' * nbdata.FICRate / sampling_rate);
 end
 
 % Handle defaults for optional input arguments
@@ -89,7 +94,7 @@ if ~exist('StartPulse', 'var')||isempty(StartPulse)||(StartPulse <= 0)
     StartPulse = 1;
 end
 if ~exist('StopPulse', 'var')||isempty(StopPulse)||(StopPulse <= 0)
-    StopPulse = meta.Data.ArraySize(CHANNEL).NumVectors;
+    StopPulse = meta.Data.Channel(Channel).NumVectors;
 end
 if ~exist('Stride', 'var')||isempty(Stride)
     Stride = 1;
@@ -109,7 +114,7 @@ if ~exist('wb', 'var')||isempty(wb)
 end
 
 % Read data and compute MPSD
-TotPow = zeros(meta.Data.ArraySize(CHANNEL).NumSamples,1);
+TotPow = zeros(meta.Data.Channel(Channel).NumSamples,1);
 pulse_indices = double(StartPulse):double(Stride):double(StopPulse);
 if wb
     wbh = waitbar(0, 'Processing pulses');
@@ -129,7 +134,7 @@ for i=1:num_pulse_sets
         pulses = fftshift(pulses);
         pulses(1,:) = pulses(2,:);
     else % stretch
-        pulses = deskew_rvp(pulses, sampling_rate, meta.RadarCollection.Waveform.WFParameters.RcvFMRate);
+        pulses = deskew_rvp(pulses, sampling_rate, nbdata.FICRate);
     end
     TotPow = TotPow + sum(abs(pulses).^2,2);
 end

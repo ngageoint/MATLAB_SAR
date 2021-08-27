@@ -95,15 +95,15 @@ data.Rcv.Y    = nbdata.RcvPos(:,2,1).';
 data.Rcv.Z    = nbdata.RcvPos(:,3,1).';
 data.R0      = (sqrt(sum((nbdata.TxPos-nbdata.SRPPos).^2,2)) + ... % Range from antenna to motion comp point
                sqrt(sum((nbdata.RcvPos-nbdata.SRPPos).^2,2)))/2;
-data.minF    = nbdata.Fx0 + (nbdata.Fx_SS * double(ifp_params.sample_range(1))); % Minimum frequency for each pulse (Hz)
-data.deltaF  = nbdata.Fx_SS; % Frequency step size (Hz)
+data.minF    = nbdata.SC0 + (nbdata.SCSS * double(ifp_params.sample_range(1))); % Minimum frequency for each pulse (Hz)
+data.deltaF  = nbdata.SCSS; % Frequency step size (Hz)
 data.phdata  = phase_history;
 % The following is the only line of actual IFP in this whole function:
 complex_image = bpBasic(data);
 % "Basebanding".  This centers the frequency support, even if the image is
 % formed to a DEM.  When working on image domain data, we need an average
 % center frequency across all pulses.
-f_c          = mean(nbdata.Fx0  + (nbdata.Fx_SS * ...
+f_c          = mean(nbdata.SC0  + (nbdata.SCSS * ...
     double(ifp_params.sample_range(ceil(length(ifp_params.sample_range)/2))-1)));
 c            = SPEED_OF_LIGHT; % Speed of light (m/s)
 complex_image = complex_image.*...

@@ -52,6 +52,9 @@ else
     % invalid filename
 end
 cphd_meta = ph_reader.get_meta();
+if ~strcmpi(cphd_meta.CollectionID.RadarMode.ModeType,'SPOTLIGHT')  % The assumptions here are for spotlight data
+    error('PFA_FILE:UNSUPPORTED_COLLECT_TYPE','Unsupported collection mode.  Currently only spotlight data is supported.');
+end
 if strcmpi(cphd_meta.Global.DomainType,'TOA') % Assure spotlight data
     error('SELECT_PULSES_SAMPLES_CPHD:UNSUPPORTED_DOMAIN','TOA domain data not currently supported.');
 end
@@ -66,22 +69,18 @@ p0.parse(varargin{:});
 % Get the narrowband data.  Note the '[]' in the second parameter of the
 % READ_CPHD method means "don't get any sample data" for the pulses.  The
 % 'ignore' parameter on the left-hand side is the (nonexistent) pulse data.
-[ignore, first_last_pulses_nb] = ph_reader.read_cphd([1 cphd_meta.Data.ArraySize(p0.Results.channel).NumVectors], [], p0.Results.channel);
+[ignore, first_last_pulses_nb] = ph_reader.read_cphd([1 cphd_meta.Data.Channel(p0.Results.channel).NumVectors], [], p0.Results.channel);
 
 % Compute maximum resolutions and scene extents for collect
-if isfield(cphd_meta,'RadarCollection')
-    bw = cphd_meta.RadarCollection.Waveform.WFParameters.TxRFBandwidth; % Not official CPHD field
-else
-    bw = mean( first_last_pulses_nb.Fx2-first_last_pulses_nb.Fx1 ); % Total valid bandwidth
-    % bw = mean( first_last_pulses_nb.Fx_SS*double(cphd_meta.Data.ArraySize(p0.Results.channel).NumSamples) ); % Total received bandwidth in a vector
-end
-fc = mean( first_last_pulses_nb.Fx0 + ... % Center frequency
-    (first_last_pulses_nb.Fx_SS*double(cphd_meta.Data.ArraySize(p0.Results.channel).NumSamples)/2) );
-freq_step_size = mean(first_last_pulses_nb.Fx_SS);
+bw = mean( first_last_pulses_nb.FX2-first_last_pulses_nb.FX1 ); % Total valid bandwidth
+bw = mean( first_last_pulses_nb.SCSS*double(cphd_meta.Data.Channel(p0.Results.channel).NumSamples-1));
+fc = mean( first_last_pulses_nb.SC0 + ... % Center frequency
+    (first_last_pulses_nb.SCSS*double(cphd_meta.Data.Channel(p0.Results.channel).NumSamples)/2) );
+freq_step_size = mean(first_last_pulses_nb.SCSS);
 LOS        = first_last_pulses_nb.TxPos - first_last_pulses_nb.SRPPos; % Line-of-sight vector between ARP and ORP
 [max_resolution, max_extent, delta_azimuth, total_azimuth] = ...
        pulse_info_to_resolution_extent(LOS, fc, freq_step_size, bw, ...
-       double(cphd_meta.Data.ArraySize(p0.Results.channel).NumVectors));
+       double(cphd_meta.Data.Channel(p0.Results.channel).NumVectors));
 max_resolution = max_resolution * 0.886; % Convert null-to-null to 3dB width
 
 % Parse dependent parameters passed into this function
@@ -91,8 +90,8 @@ max_resolution = max_resolution * 0.886; % Convert null-to-null to 3dB width
 p1 = inputParser;
 p1.KeepUnmatched=true;
 p1.addParamValue('resolution',        max_resolution,      @isvector);
-p1.addParamValue('pulse_range',       1:cphd_meta.Data.ArraySize(p0.Results.channel).NumVectors, @isvector);
-p1.addParamValue('sample_range',      1:cphd_meta.Data.ArraySize(p0.Results.channel).NumSamples, @isvector);
+p1.addParamValue('pulse_range',       1:cphd_meta.Data.Channel(p0.Results.channel).NumVectors, @isvector);
+p1.addParamValue('sample_range',      1:cphd_meta.Data.Channel(p0.Results.channel).NumSamples, @isvector);
 p1.addParamValue('quiet',             true,                @islogical); % Display support info.
 p1.FunctionName = mfilename;
 p1.parse(varargin{:});
@@ -111,9 +110,9 @@ if ~any(strcmp(p1.UsingDefaults,'resolution')) % Resolution specified
     if any(strcmp(p1.UsingDefaults,'sample_range')) % Sample range not specified
         needed_bandwidth        = 0.886*c/(2*ifp_params.resolution(1));
         num_samples             = ceil(needed_bandwidth/freq_step_size);
-        ifp_params.sample_range = max(1,floor((cphd_meta.Data.ArraySize(ifp_params.channel).NumSamples-num_samples)/2)):...
-                                  min(cphd_meta.Data.ArraySize(ifp_params.channel).NumSamples,...
-                                  floor((cphd_meta.Data.ArraySize(ifp_params.channel).NumSamples+num_samples)/2));
+        ifp_params.sample_range = max(1,floor((cphd_meta.Data.Channel(ifp_params.channel).NumSamples-num_samples)/2)):...
+                                  min(cphd_meta.Data.Channel(ifp_params.channel).NumSamples,...
+                                  floor((cphd_meta.Data.Channel(ifp_params.channel).NumSamples+num_samples)/2));
     else
         warning('PARSE_IFP_PARAMS:RESOLUTION_IGNORED','Range component of resolution input parameter will be ignored since SAMPLE_RANGE input parameter was passed.')
     end
@@ -121,16 +120,16 @@ end
 processed_bandwidth = diff(ifp_params.sample_range([1 end]))*freq_step_size;
 
 % Choose pulses base on request cross-range resolution.
-processed_fc = mean( first_last_pulses_nb.Fx0 + ... % Center frequency of samples to process
-    (first_last_pulses_nb.Fx_SS*sum(ifp_params.sample_range([1 end]))/2) );
+processed_fc = mean( first_last_pulses_nb.SC0 + ... % Center frequency of samples to process
+    (first_last_pulses_nb.SCSS*sum(ifp_params.sample_range([1 end]))/2) );
 if ~any(strcmp(p1.UsingDefaults,'resolution')) % Resolution specified
     if any(strcmp(p1.UsingDefaults,'pulse_range')) % Pulse range not specified
         % Range of pulses to use not given; use all pulses to support the
         % requested resolution (which defaults to "max supported").
         needed_angular_aperture = 0.886*c/(2*processed_fc*ifp_params.resolution(2));
         required_num_pulses_estimate = ceil(needed_angular_aperture/delta_azimuth);
-        first_pulse   = max(2,floor((cphd_meta.Data.ArraySize(ifp_params.channel).NumVectors-required_num_pulses_estimate)/2)+2);
-        last_pulse    = min(cphd_meta.Data.ArraySize(ifp_params.channel).NumVectors-1,first_pulse+required_num_pulses_estimate-2);
+        first_pulse   = max(2,floor((cphd_meta.Data.Channel(ifp_params.channel).NumVectors-required_num_pulses_estimate)/2)+2);
+        last_pulse    = min(cphd_meta.Data.Channel(ifp_params.channel).NumVectors-1,first_pulse+required_num_pulses_estimate-2);
         angular_aperture   = 0;
         % Loop to find the minimum number of pulses needed to support the
         % specified resolution.  This gets around having a non-uniform delta

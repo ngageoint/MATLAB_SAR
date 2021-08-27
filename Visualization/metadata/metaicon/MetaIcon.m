@@ -72,8 +72,8 @@ else
                 read_fun = reader_obj.read_cphd;
             end
             [~, vbmeta] = read_fun([1 ...
-                round(meta.Data.ArraySize(1).NumVectors/2) ...
-                meta.Data.ArraySize(1).NumVectors],[]);
+                round(meta.Data.Channel(p.Results.segment).NumVectors/2) ...
+                meta.Data.Channel(p.Results.segment).NumVectors],[]);
         end
         reader_obj.close();
     elseif ~isempty(guess_complex_format(filename))
@@ -93,40 +93,46 @@ if isfield(meta,'Timeline')
     if isfield(meta.Timeline,'CollectDuration')
         CollectDuration = meta.Timeline.CollectDuration;
     end
-elseif isfield(meta,'Global')
-    if isfield(meta.Global,'CollectStart')
-        CollectStart = meta.Global.CollectStart;
+elseif isfield(meta,'Global') && isfield(meta.Global,'Timeline')
+    if isfield(meta.Global.Timeline,'CollectionStart')  % CPHD
+        CollectStart = meta.Global.Timeline.CollectionStart;
     end
-    if isfield(meta.Global,'CollectDuration')
-        CollectDuration = meta.Global.CollectDuration;
+    if isfield(meta.Global.Timeline,'CollectionRefTime')  % CRSD
+        CollectStart = meta.Global.Timeline.CollectionRefTime;
     end
-elseif exist('vbmeta','var')
-    CollectDuration = vbmeta.TxTime(end);
+    if all(isfield(meta.Global.Timeline,{'TxTime1','TxTime2'}))
+        CollectDuration = meta.Global.Timeline.TxTime2-meta.Global.Timeline.TxTime1;
+    end
+    if all(isfield(meta.Global.Timeline,{'RcvTime1','RcvTime2'}))
+        CollectDuration = meta.Global.Timeline.RcvTime2-meta.Global.Timeline.RcvTime1;
+    end
 end
 
 % IID
-if exist('CollectStart','var') && isfield(meta,'CollectionInfo') && ...
-        isfield(meta.CollectionInfo,'CollectorName')
+if isfield(meta,'CollectionInfo')  % SICD
+    collectioninfo = meta.CollectionInfo;
+elseif isfield(meta,'CollectionID')  % CPHD/CRSD
+    collectioninfo = meta.CollectionID;
+end
+if exist('CollectStart','var') && exist('collectioninfo','var') && isfield(collectioninfo,'CollectorName')
     %Use Collect Date and Collector Name if available
     IID_line = {[upper(datestr(CollectStart,'ddmmmyy')) ' ' ...
-        meta.CollectionInfo.CollectorName(1:min(4,end))]};
-elseif isfield(meta,'CollectionInfo') && isfield(meta.Global,'CoreName')
-    IID_line = {meta.CollectionInfo.CoreName(1:min(16,end))};
+        collectioninfo.CollectorName(1:min(4,end))]};
+elseif isfield(collectioninfo,'CoreName')
+    IID_line = {collectioninfo.CoreName(1:min(16,end))};
 else
     IID_line = {};
 end
 
 if isfield(meta,'GeoData') && isfield(meta.GeoData,'SCP') && isfield(meta.GeoData.SCP,'ECF')
     SCP = [meta.GeoData.SCP.ECF.X; meta.GeoData.SCP.ECF.Y; meta.GeoData.SCP.ECF.Z];
-elseif isfield(meta,'SRP') 
-    if strcmp(meta.SRP.SRPType,'FIXEDPT')
-        SCP = meta.SRP.FIXEDPT.SRPPT;
-        SCP = [SCP.X; SCP.Y; SCP.Z];
-    elseif strcmp(meta.SRP.SRPType,'PVTPOLY')
-        SCP = [polyval(meta.SRP.PVTPOLY.SRPPVTPoly.X(end:-1:1), meta.Global.CollectDuration);...
-            polyval(meta.SRP.PVTPOLY.SRPPVTPoly.Y(end:-1:1), meta.Global.CollectDuration);...
-            polyval(meta.SRP.PVTPOLY.SRPPVTPoly.Z(end:-1:1), meta.Global.CollectDuration)];
+elseif isfield(meta,'ReferenceGeometry')
+    if isfield(meta.ReferenceGeometry,'SRP') && isfield(meta.ReferenceGeometry.SRP,'ECF')
+        srp = meta.ReferenceGeometry.SRP.ECF;
+    elseif isfield(meta.ReferenceGeometry,'CRP') && isfield(meta.ReferenceGeometry.CRP,'ECF')
+        srp = meta.ReferenceGeometry.CRP.ECF;
     end
+    SCP = [srp.X; srp.Y; srp.Z];
 elseif exist('vbmeta','var')
     SCP = vbmeta.SRPPos(2,:).';
 end
@@ -158,25 +164,41 @@ catch %if no CC or lat/lon, try to get country from lat/lon
 end
 
 % Determine if Tgt info is in GeoData->GeoInfo
-if isfield(meta,'GeoData') && isfield(meta.GeoData,'GeoInfo')
-    if ~iscell(meta.GeoData.GeoInfo) && isscalar(meta.GeoData.GeoInfo)
-        meta.GeoData.GeoInfo = {meta.GeoData.GeoInfo};
+if isfield(meta,'GeoData') && isfield(meta.GeoData,'GeoInfo')  % SICD
+    geoinfo = meta.GeoData.GeoInfo;
+elseif isfield(meta,'GeoInfo')  % CPHD/CRSD
+    geoinfo = meta.GeoInfo;
+end
+if exist('geoinfo','var')
+    if ~iscell(geoinfo) && isscalar(geoinfo)
+        geoinfo = {geoinfo};
     end
-    pri_index = cellfun(@(x) isfield(x,'name')&&strcmp(x.name,'PRIMARY_TARGET'),meta.GeoData.GeoInfo);
+    pri_index = cellfun(@(x) isfield(x,'name')&&strcmp(x.name,'PRIMARY_TARGET'),geoinfo);
     if sum(pri_index)==1 && ...
-            isfield(meta.GeoData.GeoInfo{pri_index}, 'Desc') && ...
-            isfield(meta.GeoData.GeoInfo{pri_index}.Desc,'value')
-        Tgt = meta.GeoData.GeoInfo{pri_index}.Desc.value(1:min(10,end));
+            isfield(geoinfo{pri_index}, 'Desc') && ...
+            isfield(geoinfo{pri_index}.Desc,'value')
+        Tgt = geoinfo{pri_index}.Desc.value(1:min(10,end));
     end
 end
 
-if isfield(meta,'ImageFormation') && isfield(meta.ImageFormation,'TxRcvPolarizationProc')
+if isfield(meta,'ImageFormation') && isfield(meta.ImageFormation,'TxRcvPolarizationProc')  % SICD
     Pol = meta.ImageFormation.TxRcvPolarizationProc; % Probably string, but could be cell array
     if ~iscell(Pol), Pol = {Pol}; end
 elseif isfield(meta,'RadarCollection') && isfield(meta.RadarCollection,'RcvChannels') && ...
        isfield(meta.RadarCollection.RcvChannels,'ChanParameters') && ...
        isfield(meta.RadarCollection.RcvChannels.ChanParameters,'TxRcvPolarization')
     Pol = {meta.RadarCollection.RcvChannels.ChanParameters.TxRcvPolarization}; % RcvChannels is struct array
+elseif isfield(meta,'Channel') && isfield(meta.Channel, 'Parameters') && ...  % CPHD
+        isfield(meta.Channel.Parameters(p.Results.segment),'Polarization') && ...
+        all(isfield(meta.Channel.Parameters(p.Results.segment).Polarization,{'TxPol','RcvPol'}))
+    Pol = {[meta.Channel.Parameters(p.Results.segment).Polarization.TxPol ':' ...
+            meta.Channel.Parameters(p.Results.segment).Polarization.RcvPol]};
+elseif isfield(meta,'Channel') && isfield(meta.Channel, 'Parameters') && ...  % CRSD
+        isfield(meta.Channel.Parameters(p.Results.segment),'RcvPol') && ...
+        isfield(meta.Channel.Parameters(p.Results.segment),'SARImaging') && ...
+        isfield(meta.Channel.Parameters(p.Results.segment).SARImaging,'TxPol')
+    Pol = {[meta.Channel.Parameters(p.Results.segment).SARImaging.TxPol ':' ...
+            meta.Channel.Parameters(p.Results.segment).RcvPol]};
 end
 if exist('Pol','var')
     Pol_cell = cellfun(@(x) split(x,':'), Pol, 'UniformOutput', false);
@@ -199,21 +221,35 @@ if exist('Pol','var')
 end
 
 % See if we can find the RNIIRS
-if isfield(meta,'CollectionInfo') && isfield(meta.CollectionInfo,'Parameter')
-    if ~iscell(meta.CollectionInfo.Parameter) && isscalar(meta.CollectionInfo.Parameter)
-        meta.CollectionInfo.Parameter = {meta.CollectionInfo.Parameter};
+if exist('collectioninfo','var') && isfield(collectioninfo,'Parameter')
+    if ~iscell(collectioninfo.Parameter) && isscalar(collectioninfo.Parameter)
+        collectioninfo.Parameter = {collectioninfo.Parameter};
     end
     rniirs_index = cellfun(@(x) isfield(x,'name')&&strcmp(x.name,'PREDICTED_RNIIRS'), ...
-        meta.CollectionInfo.Parameter);
+        collectioninfo.Parameter);
     if sum(rniirs_index)==1 && ...
-            isfield(meta.CollectionInfo.Parameter{rniirs_index}, 'value')
-        RNIIRS = meta.CollectionInfo.Parameter{rniirs_index}.value;
+            isfield(collectioninfo.Parameter{rniirs_index}, 'value')
+        RNIIRS = collectioninfo.Parameter{rniirs_index}.value;
     end
 end
 
 if isfield(meta,'SCPCOA')
     ARP = [meta.SCPCOA.ARPPos.X; meta.SCPCOA.ARPPos.Y; meta.SCPCOA.ARPPos.Z];
     ARV = [meta.SCPCOA.ARPVel.X; meta.SCPCOA.ARPVel.Y; meta.SCPCOA.ARPVel.Z];
+elseif isfield(meta,'ReferenceGeometry') && isfield(meta.ReferenceGeometry,'Monostatic')
+    ARP = [meta.ReferenceGeometry.Monostatic.ARPPos.X; ...
+        meta.ReferenceGeometry.Monostatic.ARPPos.Y; ...
+        meta.ReferenceGeometry.Monostatic.ARPPos.Z];
+    ARV = [meta.ReferenceGeometry.Monostatic.ARPVel.X; ...
+        meta.ReferenceGeometry.Monostatic.ARPVel.Y; ...
+        meta.ReferenceGeometry.Monostatic.ARPVel.Z];
+elseif isfield(meta,'ReferenceGeometry') && isfield(meta.ReferenceGeometry,'RcvParameters')
+    ARP = [meta.ReferenceGeometry.RcvParameters.RcvPos.X; ...
+        meta.ReferenceGeometry.RcvParameters.RcvPos.Y; ...
+        meta.ReferenceGeometry.RcvParameters.RcvPos.Z];
+    ARV = [meta.ReferenceGeometry.RcvParameters.RcvVel.X; ...
+        meta.ReferenceGeometry.RcvParameters.RcvVel.Y; ...
+        meta.ReferenceGeometry.RcvParameters.RcvVel.Z];
 elseif exist('vbmeta','var') && exist('SCP','var')
     % Sometimes no SCPCOA (non-standard field) for phase history
     ARP = (vbmeta.TxPos(2,:) + vbmeta.RcvPos(2,:))/2;
@@ -221,19 +257,25 @@ elseif exist('vbmeta','var') && exist('SCP','var')
         ((vbmeta.TxPos(1,:) + vbmeta.RcvPos(1,:))/2)) / ...
         (((vbmeta.TxTime(end,:) + vbmeta.RcvTime(end,:))/2) - ...
         ((vbmeta.TxTime(1,:) + vbmeta.RcvTime(1,:))/2))).';
+end
+if exist('SCP','var') && exist('ARP','var') && exist('ARV','var') && ~isfield(meta,'SCPCOA')
     meta.GeoData.SCP.ECF = struct('X',SCP(1),'Y',SCP(2),'Z',SCP(3));
     meta.SCPCOA.ARPPos = struct('X',ARP(1),'Y',ARP(2),'Z',ARP(3));
     meta.SCPCOA.ARPVel = struct('X',ARV(1),'Y',ARV(2),'Z',ARV(3));
     meta = derived_sicd_fields(meta); % Compute SCPCOA angles.  Could also use vect2geom here, but this uses structure already in SICD
 end
 
-try % Lots of fields required for this that might not be there
-    Lambda = 2/meta.Grid.Row.KCtr;
-    Theta = meta.Grid.Col.ImpRespBW*Lambda/2;
-    R = norm(abs(SCP-ARP));    
-    V = norm(ARV);
-    rov = (R/V);
-    eff_ap_time = abs((Theta*rov)/sind(meta.SCPCOA.DopplerConeAng));
+if isfield(meta,'Dwell') && isfield(meta.Dwell,'DwellTime')
+    eff_ap_time = meta.Dwell.DwellTime(p.Results.segment).DwellTimePoly(1);
+else
+    try % Lots of fields required for this that might not be there
+        Lambda = 2/meta.Grid.Row.KCtr;
+        Theta = meta.Grid.Col.ImpRespBW*Lambda/2;
+        R = norm(abs(SCP-ARP));    
+        V = norm(ARV);
+        rov = (R/V);
+        eff_ap_time = abs((Theta*rov)/sind(meta.SCPCOA.DopplerConeAng));
+    end
 end
 
 if isfield(meta,'Grid') %maintian resolution of plane that image is in...
@@ -243,12 +285,12 @@ if isfield(meta,'Grid') %maintian resolution of plane that image is in...
         AzIPR = AzIPR/cosd(meta.SCPCOA.TwistAng);
         RgIPR = RgIPR/cosd(meta.SCPCOA.GrazeAng);
     end
-else
-    if isfield(meta,'RadarCollection') && isfield(meta.RadarCollection,'Waveform') && ...
-            isfield(meta.RadarCollection.Waveform,'WFParameters') && ...
-            isfield(meta.RadarCollection.Waveform.WFParameters,'TxRFBandwidth')
-        BW = meta.RadarCollection.Waveform.WFParameters.TxRFBandwidth/1e6; %MHz
-    end
+elseif isfield(meta,'Channel') && isfield(meta.Channel,'Parameters') && ...
+        isfield(meta.Channel.Parameters,'FxBW')
+    BW = meta.Channel.Parameters(p.Results.segment).FxBW/1e6; %MHz
+elseif isfield(meta,'Global') && isfield(meta.Global,'FxBand') && ...
+        all(isfield(meta.Global.FxBand,{'FxMin','FxMax'}))
+    BW = (meta.Global.FxBand.FxMax - meta.Global.FxBand.FxMin)/1e6;
 end
 
 if isfield(meta,'SCPCOA')
@@ -281,7 +323,7 @@ set(h,'YTick',[]);
 
 %get axis aspect ratio, we will use this to draw the vectors at the proper
 %angle
-AspectRatio = h.Position(3)/h.Position(4);
+AspectRatio = axes_pos(3)/axes_pos(4);
 
 %get pixel spacing aspect ratio
 if isfield(meta,'Grid') && all(isfield(meta.Grid,{'Col','Row'})) && ...

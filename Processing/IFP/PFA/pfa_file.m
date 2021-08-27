@@ -75,11 +75,14 @@ if isempty(max_block_size)
 end
 cphd_meta = ph_reader.get_meta();
 [ignore, nbdata] = ph_reader.read_cphd(ifp_params.pulse_range, [], 1);
-if ~strcmpi(cphd_meta.CollectionInfo.RadarMode.ModeType,'SPOTLIGHT') || ...
+if ~strcmpi(cphd_meta.CollectionID.RadarMode.ModeType,'SPOTLIGHT') || ...
         any(any(diff(nbdata.SRPPos)))  % Assure spotlight data
     error('PFA_FILE:UNSUPPORTED_COLLECT_TYPE','Unsupported collection mode.  Currently only spotlight data is supported.');
 else
     scp = nbdata.SRPPos(1,:);
+end
+if ~strcmp(cphd_meta.Global.DomainType, 'FX')
+    error('PFA_FILE:UNSUPPORTED_FILE_TYPE','Unsupported CPHD type.  Currently only FX domain is supported.');
 end
 
 %% Compute some values we will need
@@ -136,8 +139,8 @@ ifp_params.ipn=ifp_params.ipn/norm(ifp_params.ipn); % Slant plane unit normal
 rf_to_rad = (2/SPEED_OF_LIGHT) .* ... % Convert from cycles/second to cycles/meter
     k_sf .* ... % Compensate for out-of-plane motion by projecting into image formation plane
     bi_freq_scale; % For bistatic collects, a factor to account for using the equivalent monostatic position
-k_r0 = rf_to_rad .* (nbdata.Fx0 + (nbdata.Fx_SS*min(double(ifp_params.sample_range)-1))); % Radial position of the first sample in each pulse
-k_r_ss = rf_to_rad .* nbdata.Fx_SS; % Radial position spacings between the samples in each pulse
+k_r0 = rf_to_rad .* (nbdata.SC0 + (nbdata.SCSS*min(double(ifp_params.sample_range)-1))); % Radial position of the first sample in each pulse
+k_r_ss = rf_to_rad .* nbdata.SCSS; % Radial position spacings between the samples in each pulse
 % Compute new coordinates onto which to interpolate
 [k_v_bounds, k_u_bounds] = pfa_inscribed_rectangle_coords(k_a, k_r0, ...
     double(max(ifp_params.sample_range) - min(ifp_params.sample_range)) * ...

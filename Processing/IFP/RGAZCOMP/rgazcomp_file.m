@@ -66,15 +66,18 @@ if isempty(max_block_size)
 end
 cphd_meta = ph_reader.get_meta();
 [ignore, nbdata] = ph_reader.read_cphd(ifp_params.pulse_range, [], 1);
-if ~strcmpi(cphd_meta.CollectionInfo.RadarMode.ModeType,'SPOTLIGHT') || ...
+if ~strcmpi(cphd_meta.CollectionID.RadarMode.ModeType,'SPOTLIGHT') || ...
         any(any(diff(nbdata.SRPPos)))  % Assure spotlight data
     error('RGAZCOMP_FILE:UNSUPPORTED_COLLECT_TYPE','Unsupported collection mode.  Only spotlight data is supported.');
 end
-if any(diff(nbdata.Fx0)) || any(diff(nbdata.Fx_SS))
+if any(diff(nbdata.SC0)) || any(diff(nbdata.SCSS))
     error('RGAZCOMP_FILE:UNSUPPORTED_COLLECT_TYPE','Unsupported data type.  Must have constant Fx0/Fx_SS.');
 end
 if any(diff(diff(ifp_params.sample_range)))
     error('RGAZCOMP_FILE:UNSUPPORTED_COLLECT_TYPE','Selected samples must be regularly spaced.');
+end
+if ~strcmp(cphd_meta.Global.DomainType, 'FX')
+    error('RGAZCOMP_FILE:UNSUPPORTED_FILE_TYPE','Unsupported CPHD type.  Currently only FX domain is supported.');
 end
 
 %% Compute some values we will need

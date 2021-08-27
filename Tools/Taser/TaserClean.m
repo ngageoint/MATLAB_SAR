@@ -105,10 +105,10 @@ end
             ph_reader_object = open_ph_reader(phd.filename);
             populate_algorithm_menu();
             phd.meta = ph_reader_object.get_meta();
-            NumPulses = phd.meta.Data.ArraySize.NumVectors;
-            if isfield(phd.meta,'CollectionInfo')&&...
-                    isfield(phd.meta.CollectionInfo,'CoreName')
-                corename = phd.meta.CollectionInfo.CoreName;
+            NumPulses = phd.meta.Data.Channel(1).NumVectors;
+            if isfield(phd.meta,'CollectionID')&&...
+                    isfield(phd.meta.CollectionID,'CoreName')
+                corename = phd.meta.CollectionID.CoreName;
             else
                 corename = '';
             end
@@ -129,7 +129,7 @@ end
             
             % Meta icon
             phd.uip_children(2) = axes('Parent',uip_hand,'Position',[0 .55 1 .4]);
-            MetaIcon_PHD(ph_reader_object, 'handle', phd.uip_children(2));
+            MetaIcon_PHD(phd.meta, 'handle', phd.uip_children(2));
             ph_reader_object.close();
         else % Complex data
             % set figure size appropriate for data

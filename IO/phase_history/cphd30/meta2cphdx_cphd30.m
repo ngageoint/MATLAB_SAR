@@ -117,6 +117,10 @@ cphdxmeta.VectorParameters = replace_fieldname(cphdxmeta.VectorParameters, 'Puls
 cphdxmeta.VectorParameters = replace_fieldname(cphdxmeta.VectorParameters, 'SRP', 'SRPPos');
 cphdxmeta.VectorParameters = replace_fieldname(cphdxmeta.VectorParameters, 'AmpSF0', 'AmpSF');
 cphdxmeta.VectorParameters = replace_fieldname(cphdxmeta.VectorParameters, 'FxStepSize', 'Fx_SS');
+
+% This code converts to this point converts to CPHD 0.3.  The following
+% update will include updates after that.
+cphdxmeta = cphd_update_meta(cphdxmeta);
     
     function structure = replace_fieldname(structure, old_fieldname, new_fieldname)
         if isfield(structure,old_fieldname)
