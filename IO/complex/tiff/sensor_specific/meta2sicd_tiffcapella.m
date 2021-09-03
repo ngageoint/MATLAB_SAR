@@ -36,6 +36,8 @@ meta.CollectionInfo.CoreName = [... % Start with NGA-like prefix
         upper(datestr(startTime,'HHMMSS'))];  % Maybe should put something better here
 meta.CollectionInfo.CollectType = 'MONOSTATIC';
 switch meta.native.tiff.ImageDescription.collect.mode
+    case 'spotlight'
+        meta.CollectionInfo.RadarMode.ModeType = 'SPOTLIGHT';
     case 'stripmap'
         meta.CollectionInfo.RadarMode.ModeType = 'STRIPMAP';
     case 'sliding_spotlight'
@@ -123,7 +125,7 @@ meta.Grid.Col.SS = meta.native.tiff.ImageDescription.collect.image.pixel_spacing
 % This may not make sense for backprojected data
 % output_meta.Grid.Row.Sgn = -1;
 % output_meta.Grid.Col.Sgn = -1;
-bw = meta.native.tiff.ImageDescription.collect.radar.pulse_bandwidth;
+bw = meta.native.tiff.ImageDescription.collect.radar.time_varying_parameters.pulse_bandwidth;
 fc = meta.native.tiff.ImageDescription.collect.radar.center_frequency; % Center frequency
 meta.Grid.Row.ImpRespBW = 2*bw/SPEED_OF_LIGHT;
 meta.Grid.Row.ImpRespWid =  meta.native.tiff.ImageDescription.collect.image.range_resolution;
@@ -170,7 +172,7 @@ end
 %% Radar Collection
 meta.RadarCollection.Waveform.WFParameters.TxRFBandwidth = bw;
 meta.RadarCollection.Waveform.WFParameters.TxPulseLength = ...
-    meta.native.tiff.ImageDescription.collect.radar.pulse_duration;
+    meta.native.tiff.ImageDescription.collect.radar.time_varying_parameters.pulse_duration;
 meta.RadarCollection.Waveform.WFParameters.RcvDemodType='CHIRP';
 meta.RadarCollection.Waveform.WFParameters.ADCSampleRate = ...
     meta.native.tiff.ImageDescription.collect.radar.sampling_frequency;
