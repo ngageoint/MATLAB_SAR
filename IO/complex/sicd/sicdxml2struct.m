@@ -24,7 +24,7 @@ switch char(root_node.getNodeName)
     case 'CPHD'
         schema_filename = which('CPHD_schema_V1.0.1_2018_05_21.xsd');
     case 'CRSD'
-        schema_filename = which('CRSD_schema_V1.0.0_2021_06_12.xsd');
+        schema_filename = which('CRSD_schema_V1.0.x_NTB_DRAFT_2021_06_30.xsd');
     case 'SICD'
         schema_filename = which('SICD_schema_V1.1.0_2014_09_30.xsd');
     % case 'SIDD' % Might add this later
