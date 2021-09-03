@@ -143,7 +143,7 @@ else
         validation_report = add_val_inc(validation_report, 'Error', ...
             SF_BOUNDS_STR, ...
             ['0.5/Grid.Row.SS: ' num2str(0.5/SICD_meta.Grid.Row.SS) ...
-            ' , Grid.Col.DeltaK2: ' num2str(SICD_meta.Grid.Row.DeltaK2)]);
+            ' , Grid.Row.DeltaK2: ' num2str(SICD_meta.Grid.Row.DeltaK2)]);
     end
     % 2.3.7.
     if SICD_meta.Grid.Row.DeltaK1<((-1/(2*SICD_meta.Grid.Row.SS))-EPS_SCALE*eps(SICD_meta.Grid.Row.SS))
@@ -785,7 +785,7 @@ switch SICD_meta.ImageFormation.ImageFormAlgo
         ARP=[SICD_meta.SCPCOA.ARPPos.X SICD_meta.SCPCOA.ARPPos.Y SICD_meta.SCPCOA.ARPPos.Z];
         ARP_v=[SICD_meta.SCPCOA.ARPVel.X SICD_meta.SCPCOA.ARPVel.Y SICD_meta.SCPCOA.ARPVel.Z];
         uRG = (SCP - ARP)/norm(SCP - ARP); % Range unit vector
-        left = cross(ARP/norm(ARP),ARP_v/norm(ARP));
+        left = cross(ARP/norm(ARP),ARP_v/norm(ARP_v));
         look = sign(left * uRG');
         spn=-look*cross(uRG,ARP_v); spn=spn/norm(spn); % Slant plane unit normal
         % 2.12.1.3
@@ -1040,7 +1040,7 @@ switch SICD_meta.ImageFormation.ImageFormAlgo
                 ARP=[SICD_meta.SCPCOA.ARPPos.X SICD_meta.SCPCOA.ARPPos.Y SICD_meta.SCPCOA.ARPPos.Z];
                 ARP_v=[SICD_meta.SCPCOA.ARPVel.X SICD_meta.SCPCOA.ARPVel.Y SICD_meta.SCPCOA.ARPVel.Z];
                 uRG = (SCP - ARP)/norm(SCP - ARP); % Range unit vector
-                left = cross(ARP/norm(ARP),ARP_v/norm(ARP));
+                left = cross(ARP/norm(ARP),ARP_v/norm(ARP_v));
                 look = sign(left * uRG');
                 spn=-look*cross(uRG,ARP_v); spn=spn/norm(spn); % Slant plane unit normal
                 if acosd(dot(ipn/norm(ipn),spn)) > 2
@@ -1288,7 +1288,7 @@ switch SICD_meta.ImageFormation.ImageFormAlgo
                         polyval(polyder(SICD_meta.Position.ARPPoly.Z(end:-1:1)), ...
                         SICD_meta.RMA.INCA.TimeCAPoly(1))];
                     uRG = (SCP - ca_pos)/norm(SCP - ca_pos); % Range unit vector
-                    left = cross(ca_pos/norm(ca_pos),ca_vel/norm(ca_pos));
+                    left = cross(ca_pos/norm(ca_pos),ca_vel/norm(ca_vel));
                     look = sign(left * uRG');
                     spn=-look*cross(uRG,ca_vel); spn=spn/norm(spn); % Slant plane unit normal
                     uAZ = cross(spn,uRG);
