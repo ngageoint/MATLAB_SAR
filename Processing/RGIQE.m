@@ -203,7 +203,7 @@ for i = 1:numel(meta)
     if isfield(meta{i}, 'Radiometric') && ...
             isfield(meta{i}.Radiometric, 'SigmaZeroSFPoly')
         % Scale to be equal to noise equivalent sigma zero
-        noise_sigma = meta{i}.Radiometric.SigmaZeroSFPoly * noise_sigma;
+        noise_sigma = meta{i}.Radiometric.SigmaZeroSFPoly(1) * noise_sigma;
     end
 
     %% Get signal level
