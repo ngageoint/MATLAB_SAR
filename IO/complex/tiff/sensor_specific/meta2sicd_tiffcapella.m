@@ -123,7 +123,12 @@ meta.Grid.Row.SS = meta.native.tiff.ImageDescription.collect.image.pixel_spacing
 meta.Grid.Col.SS = meta.native.tiff.ImageDescription.collect.image.pixel_spacing_row;
 meta.Grid.Row.Sgn = -1;
 meta.Grid.Col.Sgn = -1;
-meta.Grid.Row.ImpRespBW = 2*meta.native.tiff.ImageDescription.collect.image.processed_range_bandwidth/SPEED_OF_LIGHT;
+bw = meta.native.tiff.ImageDescription.collect.radar.time_varying_parameters.pulse_bandwidth;
+if isfield(meta.native.tiff.ImageDescription.collect.image,'processed_range_bandwidth')
+    meta.Grid.Row.ImpRespBW = 2*meta.native.tiff.ImageDescription.collect.image.processed_range_bandwidth/SPEED_OF_LIGHT;
+else
+    meta.Grid.Row.ImpRespBW = 2*bw/SPEED_OF_LIGHT;
+end
 meta.Grid.Row.ImpRespWid =  meta.native.tiff.ImageDescription.collect.image.range_resolution;
 meta.Grid.Col.ImpRespWid =  meta.native.tiff.ImageDescription.collect.image.azimuth_resolution;
 dop_bw = meta.native.tiff.ImageDescription.collect.image.processed_azimuth_bandwidth; % Doppler bandwidth
@@ -158,7 +163,6 @@ end
 % TODO: Numeric WgtFunct
 
 %% Radar Collection
-bw = meta.native.tiff.ImageDescription.collect.radar.time_varying_parameters.pulse_bandwidth;
 meta.RadarCollection.Waveform.WFParameters.TxRFBandwidth = bw;
 meta.RadarCollection.Waveform.WFParameters.TxPulseLength = ...
     meta.native.tiff.ImageDescription.collect.radar.time_varying_parameters.pulse_duration;
