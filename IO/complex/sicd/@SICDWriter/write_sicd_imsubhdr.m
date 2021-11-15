@@ -71,7 +71,7 @@ switch obj.sicdmeta.ImageData.PixelType
         ISUBCAT1 = 'I';
         ISUBCAT2 = 'Q';
     case 'AMP8I_PHS8I'
-        PVTYPE = 'SI';
+        PVTYPE = 'INT';
         ABPP = 8;
         ISUBCAT1 = 'M';
         ISUBCAT2 = 'P';
