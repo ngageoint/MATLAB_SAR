@@ -69,6 +69,9 @@ meta.ImageData.SCPPixel.Row = floor(meta.ImageData.NumRows/2);
 if strcmpi(meta.native.tiff.ImageDescription.collect.radar.pointing,'left')
     meta.ImageData.SCPPixel.Col = meta.ImageData.NumCols - meta.ImageData.SCPPixel.Col - 1;
 end
+% Note that meta.native.tiff.ImageDescription.collect.image.center_pixel.center_time
+% is merely (start_timestamp + stop_timestamp)/2.  It does not denote the
+% zero Doppler time of what the center pixel should be.
 
 %% GeoData
 meta.GeoData.EarthModel='WGS_84';
@@ -119,7 +122,8 @@ end
 meta.Grid.TimeCOAPoly = round((coaTime-startTime)*SECONDS_IN_A_DAY) + ... % Convert from days to secs
         (coaTimeFrac-startTimeFrac); % Handle fractional seconds;
 % Capella format and SICD label rows/columns differently
-meta.Grid.Row.SS = meta.native.tiff.ImageDescription.collect.image.pixel_spacing_column;
+meta.Grid.Row.SS = meta.native.tiff.ImageDescription.collect.image.image_geometry.delta_range_sample;
+% meta.native.tiff.ImageDescription.collect.image.pixel_spacing_column is ground spacing
 meta.Grid.Col.SS = meta.native.tiff.ImageDescription.collect.image.pixel_spacing_row;
 meta.Grid.Row.Sgn = -1;
 meta.Grid.Col.Sgn = -1;
@@ -151,16 +155,26 @@ if ~isempty(par_names)
         meta.native.tiff.ImageDescription.collect.image.range_window.parameters.(...
         meta.Grid.Row.WgtType.Parameter.name));
 end
-meta.Grid.Col.WgtType.WindowName = ...
-    meta.native.tiff.ImageDescription.collect.image.azimuth_window.name;
-par_names = fieldnames(meta.native.tiff.ImageDescription.collect.image.azimuth_window.parameters);
-if ~isempty(par_names)
-    meta.Grid.Col.WgtType.Parameter.name = par_names{1};
-    meta.Grid.Col.WgtType.Parameter.value =  num2str( ...
-        meta.native.tiff.ImageDescription.collect.image.azimuth_window.parameters.(...
-        meta.Grid.Col.WgtType.Parameter.name));
+if strcmpi(meta.Grid.Row.WgtType.WindowName,'avci-nacaroglu')
+    meta.Grid.Row.WgtFunct = avci_nacaroglu_window(32,...
+        meta.native.tiff.ImageDescription.collect.image.range_window.parameters.alpha);
 end
-% TODO: Numeric WgtFunct
+if strcmpi(meta.native.tiff.ImageDescription.collect.image.azimuth_window.name,'antenna-taper')
+    meta.Grid.Col.WgtType.WindowName = 'UNIFORM';
+    % Antenna pattern has not been removed and no additional weighting was
+    % applied.  This is further indicated below in the ImageFormation
+    % section by setting STBeamComp to 'NO'.
+else
+    meta.Grid.Col.WgtType.WindowName = ...
+        meta.native.tiff.ImageDescription.collect.image.azimuth_window.name;
+    par_names = fieldnames(meta.native.tiff.ImageDescription.collect.image.azimuth_window.parameters);
+    if ~isempty(par_names)
+        meta.Grid.Col.WgtType.Parameter.name = par_names{1};
+        meta.Grid.Col.WgtType.Parameter.value =  num2str( ...
+            meta.native.tiff.ImageDescription.collect.image.azimuth_window.parameters.(...
+            meta.Grid.Col.WgtType.Parameter.name));
+    end
+end
 
 %% Radar Collection
 meta.RadarCollection.Waveform.WFParameters.TxRFBandwidth = bw;
@@ -243,6 +257,7 @@ vel_y = polyval(vel_coefs(:,2), meta.Grid.TimeCOAPoly(1,1));
 vel_z = polyval(vel_coefs(:,3), meta.Grid.TimeCOAPoly(1,1));
 vm_ca_sq = vel_x.^2 + vel_y.^2 + vel_z.^2; % Magnitude of the velocity squared
 meta.RMA.INCA.DRateSFPoly = 1/(sqrt(vm_ca_sq(1))*meta.RMA.INCA.TimeCAPoly(2));
+% TODO: Doppler centroid
 
 %% Radiometric
 if strcmp(meta.native.tiff.ImageDescription.collect.image.radiometry,'beta_nought')
@@ -256,8 +271,12 @@ meta = derived_sicd_fields(meta);
 
 if isfield(meta,'Radiometric') && isfield(meta.Radiometric,'SigmaZeroSFPoly')
     meta.Radiometric.NoiseLevel.NoiseLevelType = 'ABSOLUTE';
-    meta.Radiometric.NoiseLevel.NoisePoly = ...
-        meta.native.tiff.ImageDescription.collect.image.nesz_peak - 10*log10(meta.Radiometric.SigmaZeroSFPoly(1));
+    % meta.Radiometric.NoiseLevel.NoisePoly = ...
+    %     meta.native.tiff.ImageDescription.collect.image.nesz_peak - 10*log10(meta.Radiometric.SigmaZeroSFPoly(1));
+    meta.Radiometric.NoiseLevel.NoisePoly = polyshift(...
+        meta.native.tiff.ImageDescription.collect.image.nesz_polynomial.coefficients(end:-1:1),meta.RMA.INCA.R_CA_SCP);
+    meta.Radiometric.NoiseLevel.NoisePoly(1) = meta.Radiometric.NoiseLevel.NoisePoly(1) -...
+        10*log10(meta.Radiometric.SigmaZeroSFPoly(1));
 end
 
 end
@@ -274,6 +293,17 @@ function [datenum_s, datenum_frac] = datenum_w_frac(datestring)
     datenum_frac = str2double(regexp(datestring,'\.\d*','match'));
     if isnan(datenum_frac), datenum_frac = 0; end
 end
+
+% Avci-Nacaroglu Exponential
+function out = avci_nacaroglu_window(n, alpha)
+    if ~exist('alpha','var')
+        alpha = 1.25;
+    end
+    n2 = floor(n/2);
+    t = ((0:(n-1)) - n2)/n;
+    out = exp(pi * alpha * (sqrt(1 - (2 * t).^2) - 1));
+end
+
 
 % //////////////////////////////////////////
 % /// CLASSIFICATION: UNCLASSIFIED       ///
