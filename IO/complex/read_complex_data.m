@@ -36,7 +36,7 @@ function [ complex_data, metadata ] = read_complex_data( filename, varargin )
 % //////////////////////////////////////////
 
 
-if ~exist('image_number','var')
+if nargin < 6
     image_number=1;
 else
     image_number=varargin{5};
