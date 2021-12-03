@@ -217,6 +217,10 @@ end
                             coef_node = doc.createElement('Wgt');
                             attribute_name = 'index';
                             val = num2str(iii);
+                        elseif strcmp(node_name,'AmpTable')
+                            coef_node = doc.createElement('Amplitude');
+                            attribute_name = 'index';
+                            val = num2str(iii-1);
                         else
                             coef_node = doc.createElement('Coef');
                             attribute_name = 'exponent1';
