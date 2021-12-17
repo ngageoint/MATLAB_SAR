@@ -1242,7 +1242,8 @@ methods (Access = private)
                             else
                                 imwrite(rgb2gray(frame2im(fig_frame)),...
                                     [pathname filename],'gif',...
-                                    'WriteMode','append');
+                                    'WriteMode','append',...
+                                    'DelayTime',1/FPS);
                             end
                         end
                     catch
