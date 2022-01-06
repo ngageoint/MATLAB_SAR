@@ -164,7 +164,8 @@ end
                                 case {'xs:int','xs:integer'}
                                     current_struct=int32(str2double(in_string));
                                 case {'xs:positiveInteger', 'xs:nonNegativeInteger'}
-                                    current_struct=uint32(str2double(in_string));
+                                    % uint32 not sufficient for byte offsets
+                                    current_struct=uint64(str2double(in_string));
                                 case 'xs:dateTime'
                                     % Convert to MATLAB serial date number
                                     temp_str=in_string;

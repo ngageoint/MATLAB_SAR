@@ -101,15 +101,15 @@ end
 % vectors and samples, so we can't treat as a simple 3D array of size:
 % vectors x samples x channels.
 % Calculate starting position of CPHD data for each channel
-channel_offsets = [xml_meta.Data.Channel.SignalArrayByteOffset] +...
+channel_offsets = double([xml_meta.Data.Channel.SignalArrayByteOffset]) +...
     file_header.SIGNAL_BLOCK_BYTE_OFFSET;
 mm_object = cell(xml_meta.Data.NumCPHDChannels,1); % Preallocate array in case memory mapped IO can be used
 % Initialize a reader for each channel
 for i = 1:xml_meta.Data.NumCPHDChannels
     try % Try memory-mapped IO first
         mm_object{i} = memmapfile(filename,'Offset',channel_offsets(i),...
-            'Format',{matlab_datatype [2 xml_meta.Data.Channel(i).NumSamples ...
-            xml_meta.Data.Channel(i).NumVectors] 'wbvectors'},...
+            'Format',{matlab_datatype double([2 xml_meta.Data.Channel(i).NumSamples ...
+            xml_meta.Data.Channel(i).NumVectors]) 'wbvectors'},...
             'Repeat',1);
         % The following line will give out-of-error memory if memmapfile
         % not possible for this data, and thus resort to using fread.
@@ -179,7 +179,7 @@ readerobj.get_meta = @() xml_meta;
     % Faster and easier
     function data_out = chip_with_mm(pulse_indices, sample_indices, channel)
         data_out = mm_object{channel}.data.wbvectors(:,sample_indices,pulse_indices);
-        if need_to_swap_bytes, data_out = swapbytes(data_out); end;
+        if need_to_swap_bytes, data_out = swapbytes(data_out); end
     end
 
     %% Function for reading data with fread
