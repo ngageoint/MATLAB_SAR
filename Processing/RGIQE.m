@@ -379,7 +379,8 @@ function rniirs = estimate_rniirs(image_information_metric)
     % datasets with varying parameters to analysts ratings.  This
     % author prefers the information metric but also provides this as
     % well for comparison to this legacy scale.
-    coeffs = [.3960 3.7555];  % Probably more digits of precision than we really have
+    % coeffs = [0.3960 3.7555];  % Probably more digits of precision than we really have
+    coeffs = [0.4357 3.4761];  % Coefficients were updated by NGA NIQU (Feb 1, 2022) to more accruately represent RNIIRS tables
     rniirs = polyval(coeffs,log2(image_information_metric));
     % For completeness, we handle the very low RNIIRS case where the
     % logarithmic equation would have been negative.  Negative is not
