@@ -30,11 +30,15 @@ symmetry=[0 strcmpi(meta.native.tiff.ImageDescription.collect.radar.pointing,'le
 meta.CollectionInfo.CollectorName = meta.native.tiff.ImageDescription.collect.platform;
 [startTime, startTimeFrac] = datenum_w_frac(...
     meta.native.tiff.ImageDescription.collect.start_timestamp);
-% meta.CollectionInfo.CoreName = [... % NGA-style CoreName and prefix
-%         upper(datestr(startTime,'ddmmmyy')) ...
-%         meta.CollectionInfo.CollectorName ...
-%         upper(datestr(startTime,'HHMMSS'))];
-meta.CollectionInfo.CoreName = meta.native.tiff.ImageDescription.collect.collect_id;  % Capella-style CoreName
+
+if isfield(meta.native.tiff.ImageDescription.collect, 'collect_id')
+    meta.CollectionInfo.CoreName = meta.native.tiff.ImageDescription.collect.collect_id;  % Capella-style CoreName
+else
+    meta.CollectionInfo.CoreName = [... % NGA-style CoreName and prefix
+        upper(datestr(startTime,'ddmmmyy')) ...
+        meta.CollectionInfo.CollectorName ...
+        upper(datestr(startTime,'HHMMSS'))];
+end
 meta.CollectionInfo.CollectType = 'MONOSTATIC';
 switch meta.native.tiff.ImageDescription.collect.mode
     case 'spotlight'
@@ -146,24 +150,30 @@ meta.Grid.Row.DeltaK2 = -meta.Grid.Row.DeltaK1;
 meta.Grid.Row.DeltaKCOAPoly = 0;
 meta.Grid.Col.DeltaK1 = -meta.Grid.Col.ImpRespBW/2;
 meta.Grid.Col.DeltaK2 = -meta.Grid.Col.DeltaK1;
-meta.Grid.Row.WgtType.WindowName = ...
-    meta.native.tiff.ImageDescription.collect.image.range_window.name;
-par_names = fieldnames(meta.native.tiff.ImageDescription.collect.image.range_window.parameters);
-if ~isempty(par_names)
-    meta.Grid.Row.WgtType.Parameter.name = par_names{1};
-    meta.Grid.Row.WgtType.Parameter.value =  num2str( ...
-        meta.native.tiff.ImageDescription.collect.image.range_window.parameters.(...
-        meta.Grid.Row.WgtType.Parameter.name));
-end
-if strcmpi(meta.Grid.Row.WgtType.WindowName,'avci-nacaroglu')
+if strcmpi(meta.native.tiff.ImageDescription.collect.image.range_window.name,'avci-nacaroglu')
     meta.Grid.Row.WgtFunct = avci_nacaroglu_window(32,...
         meta.native.tiff.ImageDescription.collect.image.range_window.parameters.alpha);
+    meta.Grid.Row.WgtFunct = meta.Grid.Row.WgtFunct(:);  % Assure orientation
+elseif strcmpi(meta.native.tiff.ImageDescription.collect.image.range_window.name,'rectangular')
+    meta.Grid.Row.WgtType.WindowName = 'UNIFORM';
+else
+    meta.Grid.Row.WgtType.WindowName = ...
+        meta.native.tiff.ImageDescription.collect.image.range_window.name;
+    par_names = fieldnames(meta.native.tiff.ImageDescription.collect.image.range_window.parameters);
+    if ~isempty(par_names)
+        meta.Grid.Row.WgtType.Parameter.name = par_names{1};
+        meta.Grid.Row.WgtType.Parameter.value =  num2str( ...
+            meta.native.tiff.ImageDescription.collect.image.range_window.parameters.(...
+            meta.Grid.Row.WgtType.Parameter.name));
+    end
 end
 if strcmpi(meta.native.tiff.ImageDescription.collect.image.azimuth_window.name,'antenna-taper')
     meta.Grid.Col.WgtType.WindowName = 'UNIFORM';
-    % Antenna pattern has not been removed and no additional weighting was
+%     % Antenna pattern has not been removed and no additional weighting was
     % applied.  This is further indicated below in the ImageFormation
     % section by setting STBeamComp to 'NO'.
+elseif strcmpi(meta.native.tiff.ImageDescription.collect.image.azimuth_window.name,'rectangular')
+    meta.Grid.Col.WgtType.WindowName = 'UNIFORM';
 else
     meta.Grid.Col.WgtType.WindowName = ...
         meta.native.tiff.ImageDescription.collect.image.azimuth_window.name;
@@ -186,7 +196,6 @@ meta.RadarCollection.Waveform.WFParameters.ADCSampleRate = ...
 meta.RadarCollection.Waveform.WFParameters.RcvFMRate = 0; % True for RcvDemodType='CHIRP'
 meta.RadarCollection.TxFrequency.Min = fc-(bw/2); % fc calculated in Grid section
 meta.RadarCollection.TxFrequency.Max = fc+(bw/2);
-% Assumes pulse parts are exactly adjacent in bandwidth
 meta.RadarCollection.Waveform.WFParameters.TxFreqStart = ...
     meta.RadarCollection.TxFrequency.Min;
 % Polarization
@@ -197,23 +206,51 @@ meta.RadarCollection.TxPolarization = ...
     meta.native.tiff.ImageDescription.collect.radar.transmit_polarization;
 
 %% Timeline
-% TODO: Include multiple PRFs
 meta.Timeline.CollectStart = startTime + (startTimeFrac/SECONDS_IN_A_DAY);
-prf = meta.native.tiff.ImageDescription.collect.radar.prf.prf;
 [endTime, endTimeFrac] = datenum_w_frac(...
     meta.native.tiff.ImageDescription.collect.stop_timestamp);
 meta.Timeline.CollectDuration = round((endTime-startTime)*SECONDS_IN_A_DAY) + ... % Convert from days to secs
         (endTimeFrac-startTimeFrac); % Handle fractional seconds;
-meta.Timeline.IPP.Set.TStart = 0;
-meta.Timeline.IPP.Set.TEnd = 0; % Apply real value later.  Just a placeholder.
-meta.Timeline.IPP.Set.IPPStart = uint32(0);
-meta.Timeline.IPP.Set.IPPEnd = uint32(meta.Timeline.CollectDuration*prf);
-meta.Timeline.IPP.Set.IPPPoly = [0; prf];
-meta.Timeline.IPP.Set.TEnd = double(meta.Timeline.IPP.Set.IPPEnd)/prf;
+prf=[];
+prf_rel_time=[];
+for i = 1:numel(meta.native.tiff.ImageDescription.collect.radar.prf)
+    for j = 1:numel(meta.native.tiff.ImageDescription.collect.radar.prf(i).start_timestamps)
+        [prf_time, prf_time_frac] = datenum_w_frac(meta.native.tiff.ImageDescription.collect.radar.prf(i).start_timestamps{j});
+        prf_rel_time(end+1) = round((startTime-prf_time)*SECONDS_IN_A_DAY) + ... % Convert from days to secs
+            (startTimeFrac-prf_time_frac); % Handle fractional seconds;
+        prf(end+1) = meta.native.tiff.ImageDescription.collect.radar.prf(i).prf;
+    end
+end
+[prf_rel_time, ind] = sort(prf_rel_time);
+prf = prf(ind);
+% If one wanted to only use IPP sets during the time used to form this image:
+    % first_prf_time = find(prf_rel_time<=0,1,'last');
+    % ind = prf_rel_time>0 & prf_rel_time<meta.Timeline.CollectDuration;
+    % prf = [prf(first_prf_time) prf(ind)];
+    % First IPP set may start before image start, but part of it will be during imaging period
+    % prf_rel_time = [prf_rel_time(first_prf_time) prf_rel_time(ind)];
+    % ipp_count = floor(diff([prf_rel_time meta.Timeline.CollectDuration]).*prf);  % Should end on PRF
+if prf_rel_time(end)<meta.Timeline.CollectDuration  % Handle single PRF
+    prf_rel_time(end+1) = meta.Timeline.CollectDuration;
+    prf(end+1) = prf(end); % Never used
+end
+% Don't know how long the last IPP is, so we are not including it in SICD
+% metadata, if IPP was not included in the image time.
+ipp_count = floor(diff(prf_rel_time).*prf(1:(end-1)));  % Should end on PRF
+tends = prf_rel_time(1:(end-1)) + ipp_count./prf(1:(end-1));
+ippend = cumsum(ipp_count);
+ippstart = [0 ippend(1:(end-1))+1];
+for i = 1:(numel(prf)-1)
+    meta.Timeline.IPP.Set(i).TStart = prf_rel_time(i);
+    meta.Timeline.IPP.Set(i).TEnd = tends(i);
+    meta.Timeline.IPP.Set(i).IPPStart = uint32(ippstart(i));
+    meta.Timeline.IPP.Set(i).IPPEnd = uint32(ippend(i));
+    meta.Timeline.IPP.Set(i).IPPPoly = [ippstart(i)-prf(i)*prf_rel_time(i); prf(i)];
+end
 
 %% Image Formation
 meta.ImageFormation.RcvChanProc = struct('NumChanProc', uint32(1), ...
-    'PRFScaleFactor', 1);
+    'PRFScaleFactor', 1, 'ChanIndex', uint32(1));
 if strcmp(meta.native.tiff.ImageDescription.collect.image.algorithm,'backprojection')
     % meta.ImageFormation.ImageFormAlgo = meta.native.tiff.ImageDescription.collect.image.algorithm;
     meta.ImageFormation.ImageFormAlgo = 'OTHER';  % Stay within SICD spec as much as possible
@@ -267,14 +304,23 @@ else
             ['Radiometry mode ' meta.native.tiff.ImageDescription.collect.image.radiometry ' not currently handled.']);
 end
 
+old_image_form = meta.ImageFormation.ImageFormAlgo;
+meta.ImageFormation.ImageFormAlgo = 'RMA';  % Should use an RMA grid for derived_sicd_fields purposes
 meta = derived_sicd_fields(meta);
+meta.ImageFormation.ImageFormAlgo = old_image_form;
 
 if isfield(meta,'Radiometric') && isfield(meta.Radiometric,'SigmaZeroSFPoly')
     meta.Radiometric.NoiseLevel.NoiseLevelType = 'ABSOLUTE';
+    % This method provides a scalar only:
     % meta.Radiometric.NoiseLevel.NoisePoly = ...
     %     meta.native.tiff.ImageDescription.collect.image.nesz_peak - 10*log10(meta.Radiometric.SigmaZeroSFPoly(1));
+    if ~ischar(meta.native.tiff.ImageDescription.product_version)  % versions earlier than 1.9 were numeric
+        % Bug in earlier version (< 1.9) had order reversed
+        meta.native.tiff.ImageDescription.collect.image.nesz_polynomial.coefficients = ...
+            meta.native.tiff.ImageDescription.collect.image.nesz_polynomial.coefficients(end:-1:1);
+    end
     meta.Radiometric.NoiseLevel.NoisePoly = polyshift(...
-        meta.native.tiff.ImageDescription.collect.image.nesz_polynomial.coefficients(end:-1:1),meta.RMA.INCA.R_CA_SCP);
+        meta.native.tiff.ImageDescription.collect.image.nesz_polynomial.coefficients,meta.RMA.INCA.R_CA_SCP);
     meta.Radiometric.NoiseLevel.NoisePoly(1) = meta.Radiometric.NoiseLevel.NoisePoly(1) -...
         10*log10(meta.Radiometric.SigmaZeroSFPoly(1));
 end
