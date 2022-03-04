@@ -323,9 +323,7 @@ if ~isempty(guess_ph_format(filenames{1})) % Phase history data
     phdmeta = ph_reader.get_meta(); 
     FormImage = 0;
     if isfield(ph_reader,'read_cphd')
-        if isfield(phdmeta,'CollectionInfo') && strcmpi(phdmeta.CollectionInfo.RadarMode.ModeType,'SPOTLIGHT')
-            FormImage = 1;
-        elseif isfield(phdmeta,'CollectionID') && strcmpi(phdmeta.CollectionID.RadarMode.ModeType,'SPOTLIGHT')
+        if isfield(phdmeta,'CollectionID') && strcmpi(phdmeta.CollectionID.RadarMode.ModeType,'SPOTLIGHT')
             FormImage = 1;
         end
     end
