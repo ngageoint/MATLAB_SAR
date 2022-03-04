@@ -321,10 +321,11 @@ if ~isempty(guess_ph_format(filenames{1})) % Phase history data
     %spotlight mode collects for now
     ph_reader = open_ph_reader(filenames{1});
     phdmeta = ph_reader.get_meta(); 
-    if isfield(ph_reader,'read_cphd') && strcmpi(phdmeta.CollectionInfo.RadarMode.ModeType,'SPOTLIGHT')
-        FormImage = 1;
-    else
-        FormImage = 0;
+    FormImage = 0;
+    if isfield(ph_reader,'read_cphd')
+        if isfield(phdmeta,'CollectionID') && strcmpi(phdmeta.CollectionID.RadarMode.ModeType,'SPOTLIGHT')
+            FormImage = 1;
+        end
     end
     ph_reader.close();
     if handles.Prefs.ImageOverview && FormImage
