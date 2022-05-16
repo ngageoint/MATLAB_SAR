@@ -239,6 +239,7 @@ if meta.num_map_rec % Not use for level 1.1 data
 end
 
 % Read platform position data
+pos_pos = ftell(fid);
 meta.pos.rec_seq_num=fread(fid,1,'uint32'); % Record sequence number
 meta.pos.rec_subtype1=fread(fid,1,'uint8'); % Record subtype code
 meta.pos.rec_type=fread(fid,1,'uint8'); % Record type
@@ -277,9 +278,10 @@ for i = 1:meta.pos.num_pts
 end
 fseek(fid,18,'cof'); % Blanks
 meta.pos.leap_sec=fread(fid,1,'uint8=>char').'; % Occurrence flag of a leap second
-fseek(fid,579,'cof'); % Blanks
+fseek(fid,pos_pos+meta.pos.rec_length,'bof'); % Blanks
 
 % Read attitude data
+att_pos = ftell(fid);
 meta.att.rec_seq_num=fread(fid,1,'uint32'); % Record sequence number
 meta.att.rec_subtype1=fread(fid,1,'uint8'); % Record subtype code
 meta.att.rec_type=fread(fid,1,'uint8'); % Record type
@@ -303,7 +305,8 @@ for i = 1:meta.att.num_pts
     meta.att.pts(i).roll_rate=str2double(fread(fid,14,'uint8=>char')); % Roll rate
     meta.att.pts(i).yaw_rate=str2double(fread(fid,14,'uint8=>char')); % Yaw rate
 end
-fseek(fid,meta.att.rec_length-(16+120*meta.att.num_pts),'cof'); % Blanks
+fseek(fid,att_pos+meta.att.rec_length,'bof'); % Blanks
+%fseek(fid,meta.att.rec_length-(16+120*meta.att.num_pts),'cof'); % Blanks
 
 % Read radiometric data
 meta.rad.rec_seq_num=fread(fid,1,'uint32'); % Record sequence number
@@ -328,6 +331,7 @@ meta.rad.dr = reshape(meta.rad.dr(1:2:end) + 1j*meta.rad.dr(2:2:end),[2 2]).';
 fseek(fid,9568,'cof'); % Blanks
 
 % Read data quality records
+data_qual_pos = ftell(fid);
 meta.data_qual.rec_seq_num=fread(fid,1,'uint32'); % Record sequence number
 meta.data_qual.rec_subtype1=fread(fid,1,'uint8'); % Record subtype code
 meta.data_qual.rec_type=fread(fid,1,'uint8'); % Record type
@@ -354,7 +358,7 @@ for i = 1:meta.data_qual.num_chans
     meta.data_qual.rel_cal_mag(i)=str2double(fread(fid,16,'uint8=>char')); % Nominal relative radiometric calibration magnitude uncertainty
     meta.data_qual.rel_cal_phs(i)=str2double(fread(fid,16,'uint8=>char')); % Nominal relative radiometric calibration phase uncertainty
 end
-fseek(fid,480-(meta.data_qual.num_chans-1)*32,'cof'); % Blanks
+fseek(fid,512-(meta.data_qual.num_chans*32),'cof'); % Blanks
 meta.data_qual.abs_err_at=fread(fid,16,'uint8=>char').'; % Absolute location error along track
 meta.data_qual.abs_err_ct=fread(fid,16,'uint8=>char').'; % Absolute location error cross track
 meta.data_qual.distort_line=fread(fid,16,'uint8=>char').'; % Geometric distortion scale in line direction
@@ -365,65 +369,65 @@ for i = 1:meta.data_qual.num_chans
     meta.data_qual.at_misreg_err(i)=str2double(fread(fid,16,'uint8=>char')); % Along track relative misregistration error
     meta.data_qual.ct_misreg_err(i)=str2double(fread(fid,16,'uint8=>char')); % Cross track relative misregistration error
 end
-fseek(fid,534,'cof'); % Blanks
+fseek(fid,data_qual_pos+meta.data_qual.rec_length,'bof'); % Blanks
+%fseek(fid,534,'cof'); % Blanks
 
 % Facility related records
-for i = 1:4
+for i=1:20
+    fac_pos = ftell(fid);
     meta.fac{i}.rec_seq_num=fread(fid,1,'uint32'); % Record sequence number
+    if feof(fid)
+        meta.fac = meta.fac(1:(i-1));
+        break;
+    end
     meta.fac{i}.rec_subtype1=fread(fid,1,'uint8'); % Record subtype code
     meta.fac{i}.rec_type=fread(fid,1,'uint8'); % Record type
     meta.fac{i}.rec_subtype2=fread(fid,1,'uint8'); % Record subtype code
     meta.fac{i}.rec_subtype3=fread(fid,1,'uint8'); % Record subtype code
     meta.fac{i}.rec_length=fread(fid,1,'uint32'); % Record length
     meta.fac{i}.fac_seq_num=str2double(fread(fid,4,'uint8=>char')); % Facility related data record sequence number
-    fseek(fid,50,'cof'); % Blanks
-    % Unclear how to parse dummy data, determined ephemeris, time error
-    % information, or coordinate conversion information that are stored in
-    % the facility related records.
-    fseek(fid,meta.fac{i}.rec_length-66,'cof');
+    if meta.fac{i}.rec_seq_num == 11
+        for j = 1:10
+            meta.fac{i}.latlon2pix(j)=str2double(fread(fid,20,'uint8=>char')); % Coefficients to convert from map project (E, N) to pixel
+        end
+        for j = 1:10
+            meta.fac{i}.latlon2line(j)=str2double(fread(fid,20,'uint8=>char')); % Coefficients to convert from map project (E, N) to line
+        end
+        meta.fac{i}.cal_mode_data_loc_flg=fread(fid,4,'uint8=>char').'; % Calibration mode data location flag
+        meta.fac{i}.start_line_upper=fread(fid,8,'uint8=>char').'; % Start line number of calibration at upper image
+        meta.fac{i}.end_line_upper=fread(fid,8,'uint8=>char').'; % Start line number of calibration at upper image
+        meta.fac{i}.start_line_bottom=fread(fid,8,'uint8=>char').'; % Start line number of calibration at upper image
+        meta.fac{i}.end_line_bottom=fread(fid,8,'uint8=>char').'; % Start line number of calibration at upper image
+        meta.fac{i}.prf_switch_flag=fread(fid,4,'uint8=>char').'; % PRF switching flag
+        meta.fac{i}.prf_switch_line=fread(fid,8,'uint8=>char').'; % Start line number of PRF switching
+        fseek(fid,8,'cof'); % Blanks
+        meta.fac{i}.num_loss_lines_10=fread(fid,8,'uint8=>char').'; % Number of loss lines (Level 1.0)
+        meta.fac{i}.num_loss_lines_11=fread(fid,8,'uint8=>char').'; % Number of loss lines (Level 1.1, 1.5, 3.1)
+        fseek(fid,312,'cof'); % Blanks
+        fseek(fid,224,'cof'); % System reserve
+        for j = 1:25
+            meta.fac{i}.a(j)=str2double(fread(fid,20,'uint8=>char')); % Coefficients to convert from pixel and line to latitude
+        end
+        for j = 1:25
+            meta.fac{i}.b(j)=str2double(fread(fid,20,'uint8=>char')); % Coefficients to convert from pixel and line to longitude
+        end
+        meta.fac{i}.origin_pixel=str2double(fread(fid,20,'uint8=>char')); % Origin pixel
+        meta.fac{i}.origin_line=str2double(fread(fid,20,'uint8=>char')); % Origin line
+        for j = 1:25
+            meta.fac{i}.c(j)=str2double(fread(fid,20,'uint8=>char')); % Coefficients to convert from latitude and longitude to pixel
+        end
+        for j = 1:25
+            meta.fac{i}.d(j)=str2double(fread(fid,20,'uint8=>char')); % Coefficients to convert from latitude and longitude to line
+        end
+        meta.fac{i}.origin_lat=str2double(fread(fid,20,'uint8=>char')); % Origin latitude
+        meta.fac{i}.origin_lon=str2double(fread(fid,20,'uint8=>char')); % Origin longitude
+    else
+        % Unclear how to parse dummy data, determined ephemeris, time error
+        % information, or coordinate conversion information that are stored in
+        % the facility related records.
+    end
+    fseek(fid,fac_pos+meta.fac{i}.rec_length,'bof'); % Blanks
 end
-meta.fac{5}.rec_seq_num=fread(fid,1,'uint32'); % Record sequence number
-meta.fac{5}.rec_subtype1=fread(fid,1,'uint8'); % Record subtype code
-meta.fac{5}.rec_type=fread(fid,1,'uint8'); % Record type
-meta.fac{5}.rec_subtype2=fread(fid,1,'uint8'); % Record subtype code
-meta.fac{5}.rec_subtype3=fread(fid,1,'uint8'); % Record subtype code
-meta.fac{5}.rec_length=fread(fid,1,'uint32'); % Record length
-meta.fac{5}.fac_seq_num=str2double(fread(fid,4,'uint8=>char')); % Facility related data record sequence number
-for i = 1:10
-    meta.fac{5}.latlon2pix(i)=str2double(fread(fid,20,'uint8=>char')); % Coefficients to convert from map project (E, N) to pixel
-end
-for i = 1:10
-    meta.fac{5}.latlon2line(i)=str2double(fread(fid,20,'uint8=>char')); % Coefficients to convert from map project (E, N) to line
-end
-meta.fac{5}.cal_mode_data_loc_flg=fread(fid,4,'uint8=>char').'; % Calibration mode data location flag
-meta.fac{5}.start_line_upper=fread(fid,8,'uint8=>char').'; % Start line number of calibration at upper image
-meta.fac{5}.end_line_upper=fread(fid,8,'uint8=>char').'; % Start line number of calibration at upper image
-meta.fac{5}.start_line_bottom=fread(fid,8,'uint8=>char').'; % Start line number of calibration at upper image
-meta.fac{5}.end_line_bottom=fread(fid,8,'uint8=>char').'; % Start line number of calibration at upper image
-meta.fac{5}.prf_switch_flag=fread(fid,4,'uint8=>char').'; % PRF switching flag
-meta.fac{5}.prf_switch_line=fread(fid,8,'uint8=>char').'; % Start line number of PRF switching
-fseek(fid,8,'cof'); % Blanks
-meta.fac{5}.num_loss_lines_10=fread(fid,8,'uint8=>char').'; % Number of loss lines (Level 1.0)
-meta.fac{5}.num_loss_lines_11=fread(fid,8,'uint8=>char').'; % Number of loss lines (Level 1.1, 1.5, 3.1)
-fseek(fid,312,'cof'); % Blanks
-fseek(fid,224,'cof'); % System reserve
-for i = 1:25
-    meta.fac{5}.a(i)=str2double(fread(fid,20,'uint8=>char')); % Coefficients to convert from pixel and line to latitude
-end
-for i = 1:25
-    meta.fac{5}.b(i)=str2double(fread(fid,20,'uint8=>char')); % Coefficients to convert from pixel and line to longitude
-end
-meta.fac{5}.origin_pixel=str2double(fread(fid,20,'uint8=>char')); % Origin pixel
-meta.fac{5}.origin_line=str2double(fread(fid,20,'uint8=>char')); % Origin line
-for i = 1:25
-    meta.fac{5}.c(i)=str2double(fread(fid,20,'uint8=>char')); % Coefficients to convert from latitude and longitude to pixel
-end
-for i = 1:25
-    meta.fac{5}.d(i)=str2double(fread(fid,20,'uint8=>char')); % Coefficients to convert from latitude and longitude to line
-end
-meta.fac{5}.origin_lat=str2double(fread(fid,20,'uint8=>char')); % Origin latitude
-meta.fac{5}.origin_lon=str2double(fread(fid,20,'uint8=>char')); % Origin longitude
-fseek(fid,1896,'cof'); % Blanks
 
 % Close file
 fclose(fid);

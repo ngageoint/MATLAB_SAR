@@ -12,6 +12,8 @@ function [ sicd_meta ] = meta2sicd_palsar2led( native_meta )
 %% CollectionInfo
 if strcmp(native_meta.data.scene_id(1:5), 'ALOS2')
     sicd_meta.CollectionInfo.CollectorName = native_meta.data.scene_id(1:5);
+elseif strcmp(native_meta.data.scene_id(1:5), 'STRIX')
+    sicd_meta.CollectionInfo.CollectorName = native_meta.data.scene_id(1:6);
 end
 % Do we want to convert CoreName to NGA-style pattern?
 sicd_meta.CollectionInfo.CoreName = strtrim(native_meta.data.scene_id);
@@ -42,8 +44,12 @@ sicd_meta.Grid.Row.ImpRespBW = 2 * native_meta.data.bw_rng * 1000 / SPEED_OF_LIG
 dop_bw = native_meta.data.bw_az; % Doppler bandwidth
 ss_zd_s = 1000/native_meta.data.prf; % Zero doppler spacing in seconds.  Could also use line timing in img file.
 sicd_meta.Grid.Col.ImpRespBW = dop_bw * ss_zd_s / sicd_meta.Grid.Col.SS; % Convert to azimuth spatial bandwidth (cycles per meter)
-sicd_meta.Grid.Row.ImpRespWid = native_meta.data_qual.sr_res;
-sicd_meta.Grid.Col.ImpRespWid = native_meta.data_qual.az_res;
+if isfinite(native_meta.data_qual.sr_res)
+    sicd_meta.Grid.Row.ImpRespWid = native_meta.data_qual.sr_res;
+end
+if isfinite(native_meta.data_qual.az_res)
+    sicd_meta.Grid.Col.ImpRespWid = native_meta.data_qual.az_res;
+end
 sicd_meta.Grid.Row.DeltaKCOAPoly = 0;
 if strcmpi(strtrim(native_meta.data.wgt_az),'1')
     sicd_meta.Grid.Row.WgtType.WindowName = 'UNIFORM';
@@ -102,14 +108,18 @@ sicd_meta.Radiometric.SigmaZeroSFPoly = 10^((native_meta.rad.cal_factor-32)/10);
 % and GammaZeroSFPoly from this later.
 
 %% ErrorStatistics
-sicd_meta.ErrorStatistics.Components.PosVelErr.Frame = 'RIC_ECF';
-sicd_meta.ErrorStatistics.Components.PosVelErr.P1 = native_meta.pos.rad_pos_err;
-sicd_meta.ErrorStatistics.Components.PosVelErr.P2 = native_meta.pos.at_pos_err;
-sicd_meta.ErrorStatistics.Components.PosVelErr.P3 = native_meta.pos.ct_pos_err;
-sicd_meta.ErrorStatistics.Components.PosVelErr.V1 = native_meta.pos.rad_vel_err;
-sicd_meta.ErrorStatistics.Components.PosVelErr.V2 = native_meta.pos.at_vel_err;
-sicd_meta.ErrorStatistics.Components.PosVelErr.V3 = native_meta.pos.ct_vel_err;
-sicd_meta.ErrorStatistics.Components.RadarSensor.RangeBias = 0.01; % Don't know this.  Just put a small number.
+if all(isfinite([native_meta.pos.rad_pos_err, native_meta.pos.at_pos_err, ...
+        native_meta.pos.ct_pos_err, native_meta.pos.rad_vel_err, ...
+        native_meta.pos.at_vel_err, native_meta.pos.ct_vel_err]))
+    sicd_meta.ErrorStatistics.Components.PosVelErr.Frame = 'RIC_ECF';
+    sicd_meta.ErrorStatistics.Components.PosVelErr.P1 = native_meta.pos.rad_pos_err;
+    sicd_meta.ErrorStatistics.Components.PosVelErr.P2 = native_meta.pos.at_pos_err;
+    sicd_meta.ErrorStatistics.Components.PosVelErr.P3 = native_meta.pos.ct_pos_err;
+    sicd_meta.ErrorStatistics.Components.PosVelErr.V1 = native_meta.pos.rad_vel_err;
+    sicd_meta.ErrorStatistics.Components.PosVelErr.V2 = native_meta.pos.at_vel_err;
+    sicd_meta.ErrorStatistics.Components.PosVelErr.V3 = native_meta.pos.ct_vel_err;
+    sicd_meta.ErrorStatistics.Components.RadarSensor.RangeBias = 0.01; % Don't know this.  Just put a small number.
+end
 
 end
 

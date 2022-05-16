@@ -37,6 +37,8 @@ sicdmeta.Position.ARPPoly.Y = fliplr( polyfit(nbdata.TxTime,nbdata.TxPos(:,2),4)
 sicdmeta.Position.ARPPoly.Z = fliplr( polyfit(nbdata.TxTime,nbdata.TxPos(:,3),4) )';
 warning(old_state);
 
+sicdmeta.GeoData.SCP = cphdmeta.SceneCoordinates.IARP;
+
 % RadarCollection
 sicdmeta.RadarCollection.TxFrequency.Min = mean(nbdata.FX1);
 sicdmeta.RadarCollection.TxFrequency.Max = mean(nbdata.FX2);
