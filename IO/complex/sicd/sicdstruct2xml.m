@@ -172,7 +172,7 @@ end
 
     function child_node = process_single_node(current_node, node_name, sicdmeta, schema_struct, index)
         % Handle special case fieldnames first
-        if any(strcmp(node_name,{'native','SICDVersion','NITF'})) % Non-spec fields added by MATLAB SAR Toolbox
+        if any(strcmp(node_name,{'native','SICDVersion','Version','NITF'})) % Non-spec fields added by MATLAB SAR Toolbox
             child_node = [];
         elseif strcmp(node_name,'ICP') % Special case: ICP Indexed by name rather than number
             ICP_fields = {'FRFC','FRLC','LRLC','LRFC'};
