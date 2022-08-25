@@ -15,6 +15,10 @@ end
 
 %% Setup reader type
 meta.native.cos=read_cos_meta(filename);
+if meta.native.cos.version~=1
+    error('OPEN_COS_READER_NOXML:UNSUPPORTED_FILE_TYPE','TanDEM-X CoSSCs not currently supported.');
+    % Requires reading half-precision float
+end
 meta.ImageData.NumCols=uint32(meta.native.cos.az);
 meta.ImageData.NumRows=uint32(meta.native.cos.rs);
 datasize=[meta.native.cos.rs meta.native.cos.az];
