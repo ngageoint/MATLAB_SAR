@@ -20,7 +20,7 @@ fid = fopen(filename);
 %% Read NITF file header
 if ~strcmp(fread(fid,9,'uint8=>char')','NITF02.10') % Check format
     fclose(fid);
-    error('READ_SICD_META:INVALID_FILE_FORMAT','Only NITF version 2.1 recongnized.');
+    error('READ_SICD_META:INVALID_FILE_FORMAT','Only NITF version 2.1 recognized.');
 end
 fseek(fid,354,'bof'); % Offset to first field of interest
 HL = str2double(fread(fid,6,'uint8=>char')'); % File header length
