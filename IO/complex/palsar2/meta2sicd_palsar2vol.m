@@ -10,19 +10,27 @@ function [ sicd_meta ] = meta2sicd_palsar2vol( native_meta )
 % //////////////////////////////////////////
 
 %% CollectionInfo
-if strcmp(native_meta.vol_set_id(1:5), 'ALOS2')
+if strncmpi(native_meta.vol_set_id, 'ALOS2', 5)
     sicd_meta.CollectionInfo.CollectorName = 'ALOS2';
+    sicd_meta.CollectionInfo.RadarMode.ModeID=native_meta.text.prod_id(9:11);
+    % Perhaps ScanSAR modes should be DYNAMIC STRIPMAP?
+    if strncmpi('SBS',sicd_meta.CollectionInfo.RadarMode.ModeID,3)
+        sicd_meta.CollectionInfo.RadarMode.ModeType='SPOTLIGHT';
+    else
+        sicd_meta.CollectionInfo.RadarMode.ModeType='STRIPMAP';
+    end
+elseif strncmpi(native_meta.vol_set_id, 'STRIX', 5)
+    sicd_meta.CollectionInfo.CollectorName = deblank(native_meta.vol_set_id);
+    sicd_meta.CollectionInfo.RadarMode.ModeID=native_meta.text.prod_id(9:10);
+    if strncmpi('SM',sicd_meta.CollectionInfo.RadarMode.ModeID,2)
+        sicd_meta.CollectionInfo.RadarMode.ModeType='STRIPMAP';
+    elseif strncmpi('SL',sicd_meta.CollectionInfo.RadarMode.ModeID,2)
+        sicd_meta.CollectionInfo.RadarMode.ModeType='DYNAMIC STRIPMAP';
+    end
 end
 % Do we want to convert CoreName to NGA-style pattern?
 sicd_meta.CollectionInfo.CoreName = native_meta.text.scene_id(8:end);
 sicd_meta.CollectionInfo.CollectType='MONOSTATIC';
-sicd_meta.CollectionInfo.RadarMode.ModeID=native_meta.text.prod_id(9:12);
-% Perhaps ScanSAR modes should be DYNAMIC STRIPMAP?
-if strncmpi('SBS',sicd_meta.CollectionInfo.RadarMode.ModeID,3)
-    sicd_meta.CollectionInfo.RadarMode.ModeType='SPOTLIGHT';
-else
-    sicd_meta.CollectionInfo.RadarMode.ModeType='STRIPMAP';
-end
 sicd_meta.CollectionInfo.Classification='UNCLASSIFIED';
 
 %% ImageCreation
