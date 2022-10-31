@@ -25,14 +25,18 @@ p1.parse(varargin{:});
 % Create XML
 doc = com.mathworks.xml.XMLUtils.createDocument(p1.Results.file_type);
 root_node = doc.getDocumentElement;
-switch p1.Results.file_type
-    case 'SICD'
-        schema_filename = which('SICD_schema_V1.3.0_2021_11_30_FINAL.xsd');
-        % SICD version also written in write_nitf_dessubhdr.m
-    case 'CPHD'
-        schema_filename = which('CPHD_schema_V1.1.0_2021_11_30_FINAL.xsd');
-    case 'CRSD'
-        schema_filename = which('CRSD_schema_V1.0.x_NTB_DRAFT_2021_06_30.xsd');
+if isfield(sicdmeta,'schema') && isfield(sicdmeta.schema, 'filename') % Undocumented feature to enable writing old versions
+    schema_filename = which(sicdmeta.schema.filename);
+else
+    switch p1.Results.file_type
+        case 'SICD'
+            schema_filename = which('SICD_schema_V1.3.0_2021_11_30_FINAL.xsd');
+            % SICD version also written in write_nitf_dessubhdr.m
+        case 'CPHD'
+            schema_filename = which('CPHD_schema_V1.1.0_2021_11_30_FINAL.xsd');
+        case 'CRSD'
+            schema_filename = which('CRSD_schema_V1.0.x_NTB_DRAFT_2021_06_30.xsd');
+    end
 end
 if ~isempty(schema_filename)
     % The schema XSD contains data type information for each field in the
@@ -172,7 +176,7 @@ end
 
     function child_node = process_single_node(current_node, node_name, sicdmeta, schema_struct, index)
         % Handle special case fieldnames first
-        if any(strcmp(node_name,{'native','Version','NITF'})) % Non-spec fields added by MATLAB SAR Toolbox
+        if any(strcmp(node_name,{'native','Version','NITF','schema'})) % Non-spec fields added by MATLAB SAR Toolbox
             child_node = [];
         elseif strcmp(node_name,'ICP') % Special case: ICP Indexed by name rather than number
             ICP_fields = {'FRFC','FRLC','LRLC','LRFC'};

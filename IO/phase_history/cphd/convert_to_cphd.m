@@ -12,9 +12,8 @@ function convert_to_cphdx( input_ph_filename, output_cphd_file, varargin )
 %                         all channels.
 %       SampleType        Datatype to be written to the output CPHD file.
 %                         Default is whatever the sample type was closest
-%                         to in the input file.  Valid options in CPHDX
-%                         version 3.0 are 'RE08I_IM08I', 'RE16I_IM16I', and
-%                         'RE32F_IM32F'.
+%                         to in the input file.  Valid options are 'CI2',
+%                         'CI4', and 'CF8'.
 %       crsd              Write raw, rather than compensated, phase history
 %                         to a CPHD file.  Of course, this option is only
 %                         possible for file formats that actually contain
