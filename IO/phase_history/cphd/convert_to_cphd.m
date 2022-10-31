@@ -28,7 +28,7 @@ function convert_to_cphdx( input_ph_filename, output_cphd_file, varargin )
 % that selected samples were evenly spaced (or maybe more simply just
 % consecutive) since CPHD only supports a single Fx_SS for each pulse.
 %
-% Author: Wade Schwartzkopf, NGA/IDT
+% Author: Wade Schwartzkopf, NGA/Research
 %
 % //////////////////////////////////////////
 % /// CLASSIFICATION: UNCLASSIFIED       ///
@@ -254,7 +254,7 @@ fwrite(cphd_fid,fileheader_string,'char');
         if strcmp(format,'CRSD')
             fh_str = sprintf('CRSD/1.0.0\n'); % File Type Header
         elseif strcmp(format,'CPHD')
-            fh_str = sprintf('CPHD/1.0.1\n'); % File Type Header
+            fh_str = sprintf('CPHD/1.1.0\n'); % File Type Header
         end
         fileheader_fieldnames = fieldnames(file_header_struct);
         for j = 1:length(fileheader_fieldnames)

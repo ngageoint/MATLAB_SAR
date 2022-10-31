@@ -27,10 +27,10 @@ doc = com.mathworks.xml.XMLUtils.createDocument(p1.Results.file_type);
 root_node = doc.getDocumentElement;
 switch p1.Results.file_type
     case 'SICD'
-        schema_filename = which('SICD_schema_V1.2.1_2018_12_13.xsd');
+        schema_filename = which('SICD_schema_V1.3.0_2021_11_30_FINAL.xsd');
         % SICD version also written in write_nitf_dessubhdr.m
     case 'CPHD'
-        schema_filename = which('CPHD_schema_V1.0.1_2018_05_21.xsd');
+        schema_filename = which('CPHD_schema_V1.1.0_2021_11_30_FINAL.xsd');
     case 'CRSD'
         schema_filename = which('CRSD_schema_V1.0.x_NTB_DRAFT_2021_06_30.xsd');
 end

@@ -36,9 +36,9 @@ else
 end
 fwriten(obj.FID, '', 40); % DESSHRP
 fwriten(obj.FID, 'SICD Volume 1 Design & Implementation Description Document', 60); % DESSHSI
-fwriten(obj.FID, '1.2.1', 10); % DESSHSV
-fwriten(obj.FID, '2018-12-13T00:00:00Z', 20); % DESSHSD
-fwriten(obj.FID, 'urn:SICD:1.2.1', 120); % DESSHTN
+fwriten(obj.FID, '1.3.0', 10); % DESSHSV
+fwriten(obj.FID, '2021-11-30T00:00:00Z', 20); % DESSHSD
+fwriten(obj.FID, 'urn:SICD:1.3.0', 120); % DESSHTN
 if isfield(obj.sicdmeta,'GeoData') && isfield(obj.sicdmeta.GeoData,'ImageCorners') && ...
     isfield(obj.sicdmeta.GeoData.ImageCorners,'ICP')
     DESSHLPG = sprintf('%+012.8f%+013.8f%+012.8f%+013.8f%+012.8f%+013.8f%+012.8f%+013.8f',...
