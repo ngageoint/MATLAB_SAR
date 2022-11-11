@@ -55,9 +55,17 @@ for i = 1:xml_meta.Data.NumCPHDChannels
     vb_array = fread(fid, [(xml_meta.Data.NumBytesPVP/BYTES_PER_ELEMENT) xml_meta.Data.Channel(i).NumVectors], 'double');
     % Distribute vector-based metadata into a structure
     for j = 1:numel(vectorParametersCell)
-        vbp_all(i).(vectorParametersCell{j}) = ...
+        if(~strcmp(vectorParametersCell{j},'AddedPVP'))
+            vbp_all(i).(vectorParametersCell{j}) = ...
             vb_array(xml_meta.PVP.(vectorParametersCell{j}).Offset+...
             (1:xml_meta.PVP.(vectorParametersCell{j}).Size),:).';
+        else
+            for jj = 1:numel(xml_meta.PVP.(vectorParametersCell{j}))
+                vbp_all(i).(xml_meta.PVP.(vectorParametersCell{j}){jj}.Name) = ...
+                vb_array(xml_meta.PVP.(vectorParametersCell{j}){jj}.Offset+...
+                (1:xml_meta.PVP.(vectorParametersCell{j}){jj}.Size),:).';
+            end
+        end
     end
 end
 

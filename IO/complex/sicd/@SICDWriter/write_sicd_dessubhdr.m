@@ -36,22 +36,20 @@ else
 end
 fwriten(obj.FID, '', 40); % DESSHRP
 fwriten(obj.FID, 'SICD Volume 1 Design & Implementation Description Document', 60); % DESSHSI
-if isfield(obj.sicdmeta,'schema')
-    if isfield(obj.sicdmeta.schema,'version')
-        schema_version = obj.sicdmeta.schema.version;
-    else
-        schema_version = '1.3.0';  % Default to current
-    end
-    if isfield(obj.sicdmeta.schema,'date')
-        schema_date = obj.sicdmeta.schema.date;
-    else
-        schema_date = '2021-11-30T00:00:00Z';  % Default to current
-    end
-    if isfield(obj.sicdmeta.schema,'urn')
-        schema_urn = obj.sicdmeta.schema.urn;
-    else
-        schema_urn = 'urn:SICD:1.3.0';  % Default to current
-    end
+if isfield(obj.sicdmeta,'schema') && isfield(obj.sicdmeta.schema,'version')
+    schema_version = obj.sicdmeta.schema.version;
+else
+    schema_version = '1.3.0';  % Default to current
+end
+if isfield(obj.sicdmeta,'schema') && isfield(obj.sicdmeta.schema,'date')
+    schema_date = obj.sicdmeta.schema.date;
+else
+    schema_date = '2021-11-30T00:00:00Z';  % Default to current
+end
+if isfield(obj.sicdmeta,'schema') && isfield(obj.sicdmeta.schema,'urn')
+    schema_urn = obj.sicdmeta.schema.urn;
+else
+    schema_urn = 'urn:SICD:1.3.0';  % Default to current
 end
 fwriten(obj.FID, schema_version, 10); % DESSHSV
 fwriten(obj.FID, schema_date, 20); % DESSHSD
