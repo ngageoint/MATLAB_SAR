@@ -17,22 +17,38 @@ function [ output_meta ] = meta2sicd_csm( HDF5_fid )
 
 SECONDS_IN_A_DAY = 24*60*60;
 
+mission_id = deblank(get_hdf_attribute(HDF5_fid,'Mission ID')');
+
 %% Setup HDF ids
-numbands=H5G.get_num_objs(HDF5_fid);
+numbands = H5G.get_num_objs(HDF5_fid);
+if strcmp( mission_id, 'CSG')
+    numbands = 1;  % CSG only has one SICD per HDF5, even for quadpol
+end
 for i=1:numbands % "pingpong" mode has multiple polarizations
     groupname=['/S0' num2str(i)];
     group_id(i)=H5G.open(HDF5_fid,groupname);
-    dset_id(i)=H5D.open(HDF5_fid,[groupname '/SBI']);
+    switch mission_id
+        case {'CSK','KMPS'}
+            dset_id(i)=H5D.open(HDF5_fid,[groupname '/SBI']);
+        otherwise  % 'CSG'
+            dset_id(i)=H5D.open(HDF5_fid,[groupname '/IMG']);
+    end
     dspace_id(i)=H5D.get_space(dset_id(i));
 end
 
 %% CollectionInfo
 output_meta.CollectionInfo.CollectorName=deblank(get_hdf_attribute(HDF5_fid,'Satellite ID')');
-output_meta.CollectionInfo.CoreName=num2str(get_hdf_attribute(HDF5_fid,'Programmed Image ID'));
+[collectStart, collectStartFrac]=datenum_w_frac(...
+    get_hdf_attribute(HDF5_fid,'Scene Sensing Start UTC')');
+% output_meta.CollectionInfo.CoreName=num2str(get_hdf_attribute(HDF5_fid,'Programmed Image ID'));
+output_meta.CollectionInfo.CoreName=[datestr(collectStart, 'ddmmmyy'), ...
+    '_', output_meta.CollectionInfo.CollectorName, '_', ...
+    datestr(collectStart, 'HHMMSS')];
 output_meta.CollectionInfo.CollectType='MONOSTATIC';
-switch output_meta.CollectionInfo.CollectorName(1:3)
+acq_mode = deblank(get_hdf_attribute(HDF5_fid,'Acquisition Mode')');
+switch mission_id
     case 'CSK'
-        switch get_hdf_attribute(HDF5_fid,'Acquisition Mode')'
+        switch acq_mode
             case {'HIMAGE','PINGPONG'} % Stripmap
                 output_meta.CollectionInfo.RadarMode.ModeType='STRIPMAP';
             case {'WIDEREGION','HUGEREGION'} % ScanSAR
@@ -40,14 +56,22 @@ switch output_meta.CollectionInfo.CollectorName(1:3)
             case {'ENHANCED SPOTLIGHT','SMART'} % "Spotlight"
                 output_meta.CollectionInfo.RadarMode.ModeType='DYNAMIC STRIPMAP';
         end
-    case 'KMP'  % 'KMPS5'
-        switch deblank(get_hdf_attribute(HDF5_fid,'Acquisition Mode')')
+    case 'KMPS'
+        switch acq_mode
             case {'STANDARD','ENHANCED STANDARD'} % Stripmap
                 output_meta.CollectionInfo.RadarMode.ModeType='STRIPMAP';
             case {'WIDE SWATH','ENHANCED WIDE SWATH'} % ScanSAR
                 output_meta.CollectionInfo.RadarMode.ModeType='STRIPMAP';
             case {'HIGH RESOLUTION', 'ENHANCED HIGH RESOLUTION', 'ULTRA HIGH RESOLUTION'} % "Spotlight"
                 output_meta.CollectionInfo.RadarMode.ModeType='DYNAMIC STRIPMAP';
+        end
+    case 'CSG'
+        if strncmp(acq_mode, 'SPOTLIGHT', 9)
+            output_meta.CollectionInfo.RadarMode.ModeType='DYNAMIC STRIPMAP';
+        elseif any(strcmp(acq_mode, {'STRIPMAP', 'QUADPOL'}))
+            output_meta.CollectionInfo.RadarMode.ModeType='STRIPMAP';
+        else
+            output_meta.CollectionInfo.RadarMode.ModeType='DYNAMIC STRIPMAP';
         end
 end
 output_meta.CollectionInfo.RadarMode.ModeID=deblank(get_hdf_attribute(HDF5_fid,'Multi-Beam ID')');
@@ -158,9 +182,20 @@ output_meta.Position.ARPPoly.Y  = P_y(end:-1:1).';
 output_meta.Position.ARPPoly.Z  = P_z(end:-1:1).';
 
 %% RadarCollection
-pols=cell(numbands,1);
-for i=1:numbands
-    pols{i}=deblank(get_hdf_attribute(group_id(i),'Polarisation')');
+switch mission_id
+    case {'CSK', 'KMPS'}
+        pols=cell(numbands,1);
+        for i=1:numbands
+            pols{i}=deblank(get_hdf_attribute(group_id(i),'Polarisation')');
+        end
+    case 'CSG'
+        if strcmp(acq_mode, 'QUADPOL')
+            pols = {'HH', 'HV', 'VH', 'VV'};
+        else
+            pols = {deblank(get_hdf_attribute(HDF5_fid,'Polarization')')};
+        end
+end
+for i = 1:numel(pols)
     output_meta.RadarCollection.RcvChannels.ChanParameters(i).TxRcvPolarization=[pols{i}(1) ':' pols{i}(2)];
 end
 tx_pol = [pols{:}]; tx_pol = unique(tx_pol(1:2:end));
@@ -188,17 +223,6 @@ output_meta.ImageFormation.RgAutofocus='NO';
 output_meta.RMA.RMAlgoType='OMEGA_K';
 output_meta.RMA.ImageType='INCA';
 output_meta.RMA.INCA.FreqZero=fc;
-% These polynomials are used later to determine RMA.INCA.DopCentroidPoly
-t_az_ref = get_hdf_attribute(HDF5_fid,'Azimuth Polynomial Reference Time');
-t_rg_ref = get_hdf_attribute(HDF5_fid,'Range Polynomial Reference Time');
-dop_poly_az=get_hdf_attribute(HDF5_fid,'Centroid vs Azimuth Time Polynomial');
-dop_poly_az=dop_poly_az(1:find(dop_poly_az~=0,1,'last')); % Strip of zero coefficients
-dop_poly_rg=get_hdf_attribute(HDF5_fid,'Centroid vs Range Time Polynomial');
-dop_poly_rg=dop_poly_rg(1:find(dop_poly_rg~=0,1,'last'));  % Strip of zero coefficients
-% dop_rate_poly_az=get_hdf_attribute(HDF5_fid,'Doppler Rate vs Azimuth Time Polynomial');
-dop_rate_poly_rg=get_hdf_attribute(HDF5_fid,'Doppler Rate vs Range Time Polynomial');
-dop_rate_poly_rg=dop_rate_poly_rg(1:find(dop_rate_poly_rg~=0,1,'last'));  % Strip of zero coefficients
-dop_rate_poly_rg=-sign(dop_rate_poly_rg(1))*dop_rate_poly_rg;  % Must be negative (KS5 makes it positive)
 
 %% SCPCOA
 output_meta.SCPCOA.SideOfTrack=get_hdf_attribute(HDF5_fid,'Look Side')';
@@ -212,6 +236,50 @@ band_independent_meta=output_meta; % Values that are consistent across all bands
 grouped_meta=cell(numbands,1);
 for i=1:numbands
     output_meta=band_independent_meta;
+    
+    %% Doppler polynomials
+    % These polynomials are used later to determine RMA.INCA.DopCentroidPoly
+    try
+        dop_rate_poly_rg=get_hdf_attribute(HDF5_fid,'Doppler Rate vs Range Time Polynomial');
+    catch
+        dop_rate_poly_rg=get_hdf_attribute(group_id(i),'Doppler Rate vs Range Time Polynomial');
+    end
+    dop_rate_poly_rg=dop_rate_poly_rg(1:find(dop_rate_poly_rg~=0,1,'last'));  % strip off zero coefficients
+    dop_rate_poly_rg=-sign(dop_rate_poly_rg(1))*dop_rate_poly_rg;  % Must be negative (KS5 makes it positive)
+    switch mission_id
+        case {'CSK', 'KMPS'}
+            t_az_ref = get_hdf_attribute(HDF5_fid,'Azimuth Polynomial Reference Time');
+            t_rg_ref = get_hdf_attribute(HDF5_fid,'Range Polynomial Reference Time');
+            dop_poly_az=get_hdf_attribute(HDF5_fid,'Centroid vs Azimuth Time Polynomial');
+            dop_poly_rg=get_hdf_attribute(HDF5_fid,'Centroid vs Range Time Polynomial');
+            dop_poly_rg=dop_poly_rg(1:find(dop_poly_rg~=0,1,'last'));  % strip off zero coefficients
+        case 'CSG'
+            B0001_meta=H5G.open(group_id(i),'B0001');
+            az_ref_time_nozd = get_hdf_attribute(group_id(i),'Azimuth Polynomial Reference Time');
+            first_time = get_hdf_attribute(B0001_meta,'Azimuth First Time');
+            last_time = get_hdf_attribute(B0001_meta,'Azimuth Last Time');
+            az_fit_times = linspace(first_time, last_time, 11);
+
+            geom_dop_cent_poly = get_hdf_attribute(group_id(i),'Doppler Centroid vs Azimuth Time Polynomial - RAW');
+
+            try
+                dop_rate_poly = get_hdf_attribute(HDF5_fid,'Doppler Rate vs Azimuth Time Polynomial');
+            catch
+                dop_rate_poly = get_hdf_attribute(group_id(i),'Doppler Rate vs Azimuth Time Polynomial');
+            end
+            
+            centroid_values = polyval(geom_dop_cent_poly(end:-1:1), az_fit_times - az_ref_time_nozd);
+            rate_values = polyval(dop_rate_poly(end:-1:1), az_fit_times - az_ref_time_nozd);
+            zd_times = az_fit_times - centroid_values ./ rate_values;
+            t_az_ref = get_hdf_attribute(group_id(i),'Azimuth Polynomial Reference Time - ZD');
+            dop_poly_az = polyfit(zd_times - t_az_ref, centroid_values, 4);
+            dop_poly_az = dop_poly_az(end:-1:1)';
+            dop_poly_az = dop_poly_az(1:find(dop_poly_az~=0,1,'last')); % strip off zero coefficients
+
+            t_rg_ref = get_hdf_attribute(group_id(i),'Range Polynomial Reference Time');
+            dop_poly_rg = get_hdf_attribute(group_id(i),'Doppler Centroid vs Range Time Polynomial');
+            dop_poly_rg = dop_poly_rg(1:find(dop_poly_rg~=0,1,'last'));  % strip off zero coefficients
+    end
 
     %% ImageData
     [num_dims datasize] = H5S.get_simple_extent_dims(dspace_id(i)); % All polarizations should be same size
@@ -219,7 +287,12 @@ for i=1:numbands
     output_meta.ImageData.NumRows=uint32(datasize(2));
     output_meta.ImageData.FullImage=output_meta.ImageData;
     output_meta.ImageData.FirstRow=uint32(0); output_meta.ImageData.FirstCol=uint32(0);
-    output_meta.ImageData.PixelType='RE16I_IM16I';
+    switch H5T.get_class(H5D.get_type(dset_id(i)))
+        case 0  % integer
+            output_meta.ImageData.PixelType='RE16I_IM16I';
+        case 1  % float
+            output_meta.ImageData.PixelType='RE32F_IM32F';
+    end
     % There are many different options for picking the SCP point.  We chose
     % the point that is closest to the reference zero-doppler and range
     % times in the CSM metadata.
@@ -246,7 +319,12 @@ for i=1:numbands
     %% GeoData
     % Initially, we just seed this with a rough value.  Later we will put
     % in something more precise.
-    latlon=get_hdf_attribute(group_id(i),'Centre Geodetic Coordinates');
+    switch mission_id
+        case {'CSK', 'KMPS'}
+            latlon=get_hdf_attribute(group_id(i),'Centre Geodetic Coordinates');
+        case 'CSG'
+            latlon=get_hdf_attribute(HDF5_fid,'Scene Centre Geodetic Coordinates');
+    end
     output_meta.GeoData.SCP.LLH.Lat=latlon(1);
     output_meta.GeoData.SCP.LLH.Lon=latlon(2);
     % CSM generally gives HAE as zero.  Perhaps we should adjust this to DEM.
@@ -308,11 +386,17 @@ for i=1:numbands
         output_meta.RadarCollection.TxFrequency.Min;
     output_meta.RadarCollection.Waveform.WFParameters.TxFMRate=chirp_rate;
     sample_rate=get_hdf_attribute(group_id(i),'Sampling Rate');
-    if isnan(get_hdf_attribute(group_id(i),'Reference Dechirping Time'))
+    try
+        if isnan(get_hdf_attribute(group_id(i),'Reference Dechirping Time'))
+            output_meta.RadarCollection.Waveform.WFParameters.RcvDemodType='CHIRP';
+            output_meta.RadarCollection.Waveform.WFParameters.RcvFMRate=0;
+        else
+            output_meta.RadarCollection.Waveform.WFParameters.RcvDemodType='STRETCH';
+            output_meta.RadarCollection.Waveform.WFParameters.RcvFMRate=chirp_rate;
+        end
+    catch
         output_meta.RadarCollection.Waveform.WFParameters.RcvDemodType='CHIRP';
         output_meta.RadarCollection.Waveform.WFParameters.RcvFMRate=0;
-    else
-        output_meta.RadarCollection.Waveform.WFParameters.RcvDemodType='STRETCH';
     end
     output_meta.RadarCollection.Waveform.WFParameters.RcvWindowLength=...
         double(get_hdf_attribute(group_id(i),'Echo Sampling Window Length'))/sample_rate;
@@ -324,8 +408,13 @@ for i=1:numbands
         output_meta.RadarCollection.TxFrequency.Min;
     output_meta.ImageFormation.TxFrequencyProc.MaxProc=...
         output_meta.RadarCollection.TxFrequency.Max;
-    output_meta.ImageFormation.TxRcvPolarizationProc=...
-        band_independent_meta.RadarCollection.RcvChannels.ChanParameters(i).TxRcvPolarization;
+    if strcmp(mission_id, 'CSG')
+        band_pol = deblank(get_hdf_attribute(HDF5_fid,'Polarization')');
+        output_meta.ImageFormation.TxRcvPolarizationProc = [band_pol(1) ':' band_pol(2)];
+    else
+        output_meta.ImageFormation.TxRcvPolarizationProc=...
+            band_independent_meta.RadarCollection.RcvChannels.ChanParameters(i).TxRcvPolarization;
+    end
     
     %% RMA
     t_rg_scp = t_rg_first + (ss_rg_s*double(output_meta.ImageData.SCPPixel.Row)); % Range time to SCP
@@ -353,12 +442,16 @@ for i=1:numbands
         SPEED_OF_LIGHT / (2 * fc * vm_ca_sq(1)); % Assumes a SGN of -1
     % Fields dependent on Doppler rate
     output_meta.Grid.Col.SS = sqrt(vm_ca_sq(1)) * abs(ss_az_s) * output_meta.RMA.INCA.DRateSFPoly(1,1);
-    % dop_bw = get_hdf_attribute(group_id(i),'Azimuth Focusing Bandwidth'); % Doppler frequency
     % 'Azimuth Focusing Bandwidth' sometimes represents something larger
-    % than ImpRespBW for S2 mode.  Not sure what "transition bandwidth"
+    % than ImpRespBW for S2 CSK mode.  Not sure what "transition bandwidth"
     % means, with respect to SAR, but it appears to correlate with non-zero
     % Doppler frequency content in SLC.
-    dop_bw = get_hdf_attribute(group_id(i),'Azimuth Focusing Transition Bandwidth'); % Doppler frequency
+    switch mission_id
+        case 'CSK'
+            dop_bw = get_hdf_attribute(group_id(i),'Azimuth Focusing Transition Bandwidth'); % Doppler frequency
+        otherwise
+            dop_bw = get_hdf_attribute(group_id(i),'Azimuth Focusing Bandwidth'); % Doppler frequency
+    end
     output_meta.Grid.Col.ImpRespBW = ... % Convert to azimuth spatial bandwidth (cycles per meter)
         min(dop_bw*abs(ss_az_s),1)/output_meta.Grid.Col.SS; % Can't have more bandwidth in data than sample spacing
     if strcmpi(output_meta.Grid.Col.WgtType.WindowName,'HAMMING') % The usual CSM weigting
@@ -433,20 +526,22 @@ for i=1:numbands
     output_meta.Grid.TimeCOAPoly=reshape(x, POLY_ORDER+1, POLY_ORDER+1);
 
     %% Radiometric
-    if ~strncmpi(get_hdf_attribute(HDF5_fid,'Range Spreading Loss Compensation Geometry')', 'NONE', 4)
-        fact = get_hdf_attribute(HDF5_fid,'Reference Slant Range') ^ ...
-            (2 * get_hdf_attribute(HDF5_fid,'Reference Slant Range Exponent'));
-        % This code commented out below converts from beta_0 to sigma_0,
-        % but we will just populate the more natural beta_0 directly, and
-        % let derived_sicd_fields compute the rest of the rcs, sigma_0,
-        % gamma_0 terms in a sensor independent way later.
-        % if ~strncmpi(get_hdf_attribute(HDF5_fid,'Incidence Angle Compensation Geometry')', 'NONE', 4)
-        %     fact = fact * sind(get_hdf_attribute(HDF5_fid,'Reference Incidence Angle'));
-        % end
-        if isequal(get_hdf_attribute(HDF5_fid,'Calibration Constant Compensation Flag'), 0)
-            fact = fact * (1 / (get_hdf_attribute(HDF5_fid,'Rescaling Factor')^2));
-            fact = fact / get_hdf_attribute(group_id(i),'Calibration Constant');
-            output_meta.Radiometric.BetaZeroSFPoly = fact;
+    if strcmp(mission_id,'CSK')  % Unsure how to handle for CSG/KMPS
+        if ~strncmpi(get_hdf_attribute(HDF5_fid,'Range Spreading Loss Compensation Geometry')', 'NONE', 4)
+            fact = get_hdf_attribute(HDF5_fid,'Reference Slant Range') ^ ...
+                (2 * get_hdf_attribute(HDF5_fid,'Reference Slant Range Exponent'));
+            % This code commented out below converts from beta_0 to sigma_0,
+            % but we will just populate the more natural beta_0 directly, and
+            % let derived_sicd_fields compute the rest of the rcs, sigma_0,
+            % gamma_0 terms in a sensor independent way later.
+            % if ~strncmpi(get_hdf_attribute(HDF5_fid,'Incidence Angle Compensation Geometry')', 'NONE', 4)
+            %     fact = fact * sind(get_hdf_attribute(HDF5_fid,'Reference Incidence Angle'));
+            % end
+            if isequal(get_hdf_attribute(HDF5_fid,'Calibration Constant Compensation Flag'), 0)
+                fact = fact * (1 / (get_hdf_attribute(HDF5_fid,'Rescaling Factor')^2));
+                fact = fact / get_hdf_attribute(group_id(i),'Calibration Constant');
+                output_meta.Radiometric.BetaZeroSFPoly = fact;
+            end
         end
     end
     

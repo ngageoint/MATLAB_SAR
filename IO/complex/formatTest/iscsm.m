@@ -15,10 +15,10 @@ fclose(fid);
 % Now that we know it is HDF5, is it CSM HDF5?
 if boolout
     try % Error if root attribute 'Mission ID' does not exist
-        boolout=any(strncmpi(h5readatt(filename,'/','Mission ID'), {'CSK','KMP'}, 3));
+        boolout=any(strncmpi(h5readatt(filename,'/','Mission ID'), {'CSK','CSG','KMP'}, 3));
     catch % h5readatt replaced hdf5read at some point in MATLAB history
         try
-            boolout=any(strncmpi(hdf5read(filename,'/','Mission ID'), {'CSK','KMP'}, 3));
+            boolout=any(strncmpi(hdf5read(filename,'/','Mission ID'), {'CSK','CSG','KMP'}, 3));
         catch % Is there a more direct way to check for attribute existence first?
             boolout=false;
         end

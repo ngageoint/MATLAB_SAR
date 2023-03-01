@@ -12,10 +12,17 @@ function [ readerobj ] = open_csm_reader( filename )
 
 %% Open HDF5 ids
 fid=H5F.open(filename, 'H5F_ACC_RDONLY', 'H5P_DEFAULT');
+mission_id = deblank(get_hdf_attribute(fid,'Mission ID')');
+switch mission_id
+    case {'CSK','KMPS'}
+        dataset_str = '/SBI';
+    otherwise  % 'CSG'
+        dataset_str = '/IMG';
+end
 meta=meta2sicd_csm(fid);
 num_bands=length(meta);
 for i=1:num_bands % "pingpong" mode has multiple polarizations
-    dset_id(i)=H5D.open(fid,['/S0' num2str(i) '/SBI']);
+    dset_id(i)=H5D.open(fid,['/S0' num2str(i) dataset_str]);
     dspace_id(i)=H5D.get_space(dset_id(i));
 end
 bands_closed=false(num_bands,1); % Remember which HDF data ids are open
