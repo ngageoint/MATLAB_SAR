@@ -95,6 +95,15 @@ sicdmeta.ImageFormation.RgAutofocus = 'NO';
 % SCPCOA
 sicdmeta.SCPCOA.SCPTime = nbdata.TxTime(ifp_params.ref_pulse_index);
 
+% Timeline
+if isfield(meta,'Global') && isfield(meta.Global, 'Timeline') && ...
+        all(isfield(meta.Global.Timeline, {'TxTime1', 'TxTime2'}))
+    sicdmeta.Timeline.CollectDuration = meta.Global.Timeline.TxTime2 - ...
+        meta.Global.Timeline.TxTime1;
+else
+    sicdmeta.Timeline.CollectDuration = nbdata.TxTime(end) - nbdata.TxTime(1);
+end
+
 % PFA
 sicdmeta.PFA.FPN = struct('X',ifp_params.fpn(1),'Y',ifp_params.fpn(2),'Z',ifp_params.fpn(3));
 sicdmeta.PFA.IPN = struct('X',ifp_params.ipn(1),'Y',ifp_params.ipn(2),'Z',ifp_params.ipn(3));
