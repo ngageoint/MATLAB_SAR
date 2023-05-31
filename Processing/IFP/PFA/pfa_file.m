@@ -29,8 +29,16 @@ function [sicd_meta] = pfa_file(input_filename_cphd, output_filename_sicd, varar
 %       max_block_size    When data can't be processed within memory, this
 %                         is the size of the blocks (in bytes) to use
 %                         process the data.
+%       process_image     Flag to process image (0 will just compute the
+%                         sicd metadata that would result from the command
+%                         arguments). Default is true. 
+%       interp_type       Interpolation to use (linear, sinc). Default is
+%                         linear (warning, sinc will be slow for large
+%                         images)
 %       quiet             If false, this reports stats on collection and
 %                         IFP parameters.  Default is true.
+%       waitbar           If true, displays waitbars during processing.
+%                         Default is true.
 %
 % Note for larger datasets, this routine executes "out of core" storing of
 % intermediate results in temporary files, which should be automatically
@@ -41,7 +49,7 @@ function [sicd_meta] = pfa_file(input_filename_cphd, output_filename_sicd, varar
 % TODO:
 %   - Check bistatic frequency scaling
 %   - More input parameters (ipn, fpn, coa, ss, etc.)
-%   - Use sinc interpolation instead of linear interpolation
+%   - More efficient sinc interpolation
 %
 % Authors: Wade Schwartzkopf and Tom Krauss, NGA/IDT
 %
@@ -56,10 +64,14 @@ p1 = inputParser; % Parse PFA-specific parameters
 p1.KeepUnmatched=true;
 p1.addParamValue('max_block_size',[], @isscalar);
 p1.addParamValue('sample_rate',1.5, @isscalar);
+p1.addParamValue('process_image',1, @isscalar);
+p1.addParamValue('interp_type','linear',@(x) any(strcmp(x,{'linear','sinc'})));
+p1.addParamValue('waitbar',1, @isscalar);
 p1.FunctionName = mfilename;
 p1.parse(varargin{:});
 ifp_params.sample_rate = p1.Results.sample_rate;
 max_block_size = p1.Results.max_block_size;
+show_waitbar = p1.Results.waitbar;
 if isempty(max_block_size)
     if ispc
         [uv, sv] = memory;
@@ -104,7 +116,7 @@ num_samples = length(ifp_params.sample_range);
 % virtual memory.
 data_element_size = 8; % In bytes.  Assumes single precision data
 process_in_blocks = max_block_size<(num_pulses*num_samples*prod(ifp_params.sample_rate)*data_element_size);
-if process_in_blocks
+if process_in_blocks && p1.Results.process_image
     warning('PFA_FILE:FILE_PROCESSING','This data must be processed through intermediate files, rather than all in memory.  This could take a while...');
 end
 
@@ -153,6 +165,11 @@ ifp_params.image_size_pixels = floor(ifp_params.sample_rate .* [num_samples num_
 ifp_params.k_a = k_a;
 ifp_params.k_sf = k_sf;
 sicd_meta = pfa_sicd_meta(cphd_meta,nbdata,ifp_params);
+
+if ~p1.Results.process_image
+    return;
+end
+
 % Coordinates onto which we will interpolate
 new_v = linspace(k_v_bounds(1), k_v_bounds(2), num_samples).';
 new_u = linspace(k_u_bounds(1), k_u_bounds(2), num_pulses).';
@@ -171,7 +188,7 @@ new_u = linspace(k_u_bounds(1), k_u_bounds(2), num_pulses).';
 % read from a file out-of-order than write out-of-order, so we will do the
 % corner-turn in the read of the U-interpolation stage, rather than the
 % write of this range interpolation stage.
-if process_in_blocks
+if process_in_blocks 
     filename_range_interp = tempname;
     tempsicdmeta.ImageData.NumRows   = num_pulses;
     tempsicdmeta.ImageData.NumCols   = num_samples;
@@ -181,16 +198,16 @@ end
 % Iterate through sets of pulses for range interpolation
 first_pulse_in_set=1; % Out of all pulses selected for processing
 max_num_lines = floor(max_block_size/(num_samples*data_element_size));
-wb_hand=waitbar(0,'V interpolation...');
+if show_waitbar; wb_hand=waitbar(0,'V interpolation...'); end
 while(first_pulse_in_set<num_pulses)
-    waitbar((first_pulse_in_set-1)/num_pulses,wb_hand);
+    if show_waitbar; waitbar((first_pulse_in_set-1)/num_pulses,wb_hand); end
     pulse_indices = first_pulse_in_set:...
         min(num_pulses,first_pulse_in_set+max_num_lines-1);
-    data_block = ph_reader.read_cphd(ifp_params.pulse_range(pulse_indices),...
-        ifp_params.sample_range, ifp_params.channel);
+    data_block = double(ph_reader.read_cphd(ifp_params.pulse_range(pulse_indices),...
+        ifp_params.sample_range, ifp_params.channel));
 
     data_block = pfa_interp_range(data_block, k_a(pulse_indices), ...
-        k_r0(pulse_indices),k_r_ss(pulse_indices), new_v);
+        k_r0(pulse_indices),k_r_ss(pulse_indices), new_v, p1.Results.interp_type);
 
     if process_in_blocks
         writer_range_interp.write_chip(data_block,[1 first_pulse_in_set]); % Save range interpolated data in this block
@@ -215,19 +232,20 @@ end
 % Iterate through blocks of data for U interpolation
 first_sample_in_block=1; % Out of all samples selected for processing
 max_num_lines = floor(max_block_size/(num_pulses*data_element_size));
-waitbar(0,wb_hand,'U interpolation...');
+if show_waitbar; waitbar(0,wb_hand,'U interpolation...'); end
 while(first_sample_in_block<num_samples)
-    waitbar((first_sample_in_block-1)/num_samples,wb_hand);
+    if show_waitbar; waitbar((first_sample_in_block-1)/num_samples,wb_hand); end
     sample_range = [first_sample_in_block ...
         min(num_samples,first_sample_in_block+max_num_lines-1)];
     if process_in_blocks
         data_block = reader_range_interp.read_chip(sample_range, [1 num_pulses]);
     end
+        
     % We transpose this data so we can process it along the first
     % dimensions, which is somewhat faster, and write it out in order,
     % which can be much faster.
     data_block = pfa_interp_azimuth(data_block.', k_a, ...
-        new_v(sample_range(1):sample_range(2)), new_u);
+        new_v(sample_range(1):sample_range(2)), new_u, p1.Results.interp_type);
     
     if process_in_blocks
         writer_u_interp.write_chip(data_block,[1 first_sample_in_block]);
@@ -253,9 +271,9 @@ end
 % Iterate through blocks of data one more time for V FFT
 first_line_in_block=1; % Out of all lines along V in the resampled image
 max_num_lines = floor(max_block_size/(length(new_v)*data_element_size));
-waitbar(0,wb_hand,'V FFT...');
+if show_waitbar; waitbar(0,wb_hand,'V FFT...'); end
 while(first_line_in_block<length(new_u))
-    waitbar((first_line_in_block-1)/single(length(new_u)),wb_hand);
+    if show_waitbar; waitbar((first_line_in_block-1)/single(length(new_u)),wb_hand); end
     line_range = [first_line_in_block ...
         min(length(new_u),first_line_in_block+max_num_lines-1)];
     if process_in_blocks
@@ -284,9 +302,9 @@ writer_final_sicd = SICDWriter(output_filename_sicd, sicd_meta); % Final image w
 % Iterate through blocks of data for U FFT
 first_line_in_block=1; % Out of all rows in the final image
 max_num_lines = floor(max_block_size/(length(new_u)*data_element_size));
-waitbar(0,wb_hand,'U FFT...');
+if show_waitbar; waitbar(0,wb_hand,'U FFT...'); end
 while(first_line_in_block<ifp_params.image_size_pixels(1))
-    waitbar((first_line_in_block-1)/ifp_params.image_size_pixels(1),wb_hand);
+    if show_waitbar; waitbar((first_line_in_block-1)/ifp_params.image_size_pixels(1),wb_hand); end
     line_range = [first_line_in_block ...
         min(ifp_params.image_size_pixels(1),first_line_in_block+max_num_lines-1)];
     if process_in_blocks
@@ -304,7 +322,7 @@ if process_in_blocks
     delete(filename_v_fft); % Intermediate file no longer needed
 end
 
-close(wb_hand); % Finally, close waitbar
+if show_waitbar; close(wb_hand); end % Finally, close waitbar
 
 end
 

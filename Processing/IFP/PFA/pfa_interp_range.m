@@ -54,7 +54,11 @@ for pulse=1:size(phase_history,2)
     % We now have the phase history samples and the U,V coordinates of
     % each sample.  We now need to interpolate the data to a
     % rectangular grid.
-    phase_history(:,pulse) = interp1(k_v, phase_history(:,pulse), new_v, interp_type, 0.0);
+    if strcmpi(interp_type,'sinc')
+        phase_history(:,pulse) = sinc_interp(phase_history(:,pulse).', k_v, new_v.');
+    else
+        phase_history(:,pulse) = interp1(k_v, phase_history(:,pulse), new_v, interp_type, 0.0);
+    end    
 end
 
 end

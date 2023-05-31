@@ -43,7 +43,11 @@ for sample = 1:size(phase_history,2)
     k_u = tan(k_a) .* v_coords(sample);
 
     % For each sample location interpolate to new desired values of U.
-    phase_history(:,sample) = interp1(k_u, phase_history(:,sample), new_u, interp_type, 0.0);
+    if strcmpi(interp_type,'sinc')
+        phase_history(:,sample) = sinc_interp(phase_history(:,sample).', k_u.', new_u.');
+    else
+        phase_history(:,sample) = interp1(k_u, phase_history(:,sample), new_u, interp_type, 0.0);
+    end
 end
 
 end
