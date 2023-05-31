@@ -211,10 +211,14 @@ if exist('Pol','var')
         end
         Pol_str = [Pol_cell{1}{1} delim 'D'];
     elseif numel(Pol_cell)==1
-        if any(~ismember(Pol_cell{1},{'V','H'}))
-            delim = ':';
+        if numel(Pol_cell{1})==1  % OTHER
+            Pol_str = Pol_cell{1}{1};
+        else
+            if any(~ismember(Pol_cell{1},{'V','H'}))
+                delim = ':';
+            end
+            Pol_str = [Pol_cell{1}{1} delim Pol_cell{1}{2}];
         end
-        Pol_str = [Pol_cell{1}{1} delim Pol_cell{1}{2}];
     else % Don't know what to do.  Could be HH/VV or other unusual pol
         Pol_str = join(Pol,',');
     end
