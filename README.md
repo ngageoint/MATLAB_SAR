@@ -6,16 +6,20 @@ Some sample SICD files are available [here](https://github.com/ngageoint/six-lib
 A sampling of some of the functionality available in the toolbox is provided below.
 
 ### File I/O
-The toolbox has readers and SICD converters for the following complex SAR formats:
+The toolbox has readers and (at least partial) SICD conversion for the following complex SAR formats:
 * ALOS PALSAR-2
+* Capella
 * COSMO-SkyMed
 * Complex NITF
 * GFF (Sandia)
+* ICEYE
 * KOMPSAT-5
 * NISAR
+* PAZ
 * Sentinel-1
 * SICD
 * SIO
+* Synspective
 * RADARSAT-2
 * RADARSAT Constellation Mission (RCM)
 * TerraSAR-X
