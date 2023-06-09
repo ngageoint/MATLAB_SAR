@@ -142,6 +142,7 @@ end
 
 %% Specify reader object methods-- close() method already defined above
 readerobj.read_cphd = @read_data;
+readerobj.get_nbdata = @get_nbdata;
 readerobj.get_meta = @() xml_meta;
 
     %% READ_CPHD method of this reader object
@@ -176,10 +177,25 @@ readerobj.get_meta = @() xml_meta;
 
         % Copy selected vector-based data to a structure
         if nargout>1
-            fldnames = fieldnames(vbp_all);
-            for fn_index = 1:numel(fldnames)
-                nbdata.(fldnames{fn_index}) = vbp_all(channel).(fldnames{fn_index})(pulse_indices,:);
-            end
+            nbdata = get_nbdata(pulse_indices, channel);
+        end
+    end
+
+    %% Function for reading only the narrowband data
+    % Faster than calling read_data when you only want nbdata
+    function [nbdata] = get_nbdata(pulse_indices, channel)
+         % Compute default input parameters
+        if (nargin<3)
+            channel=1;
+        end
+        if (nargin<1)||strcmpi(pulse_indices,'all')
+            pulse_indices=1:double(xml_meta.Data.Channel(channel).NumVectors);
+        end
+
+        % read just the nb data
+        fldnames = fieldnames(vbp_all);
+        for fn_index = 1:numel(fldnames)
+            nbdata.(fldnames{fn_index}) = vbp_all(channel).(fldnames{fn_index})(pulse_indices,:);
         end
     end
 
