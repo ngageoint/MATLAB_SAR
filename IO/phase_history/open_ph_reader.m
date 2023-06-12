@@ -65,13 +65,6 @@ if isempty(format_string)
 end
 readerobj = eval(['open_' format_string '_reader(''' filename ''', varargin{:});']);
 
-% Define the get_nbdata for each reader object
-if exist(ro,'read_cphd')
-    readerobj.get_nbdata = ro.read_cphd('all', []);
-elseif exist(ro,'read_raw')
-    readerobj.get_nbdata = ro.read_raw('all', []);
-end
-
 end
 
 % //////////////////////////////////////////
