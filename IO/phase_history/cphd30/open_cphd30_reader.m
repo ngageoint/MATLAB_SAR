@@ -65,6 +65,7 @@ meta=meta2cphdx_cphd30(cphd_preamble, all_nbdata); % Convert metadata to CPHDX f
 meta.native.cphd30 = cphd_preamble; % Save original format
 
 readerobj.read_cphd=@read_data;
+readerobj.get_nbdata =@get_nbdata;
 readerobj.get_meta=@() meta;
 readerobj.close=@() fclose(fid);
 
@@ -159,6 +160,18 @@ readerobj.close=@() fclose(fid);
             end
             % TODO: Compute offsets due to channel numbers
         end
+    end
+
+
+    % Function to get only the nbdata
+    function [nbdata] = get_nbdata(pulse_indices, channel)
+        if (nargin<2)
+            channel = 1;
+        end
+        if (nargin<1)
+            pulse_indices = 'all';
+        end
+        [~, nbdata] = read_data(pulse_indices, [], channel);
     end
 
     % Assumes a single channel dataset
