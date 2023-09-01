@@ -72,21 +72,31 @@ else
 end
 % Extract relevant metadata
 meta = reader_obj.get_meta();
-if ~meta.Channel.Parameters(Channel).DemodFixed
-    error('MPSD:VARIABLE_DEMOD','Fixed demod required.');
-end
-[~, nbdata] = reader_obj.read_raw(1,1,Channel);
-NumChannels = meta.Data.NumCRSDChannels;
 NumSamples = meta.Data.Channel(Channel).NumSamples;
 IID = meta.CollectionID.CoreName;
-sampling_rate =  meta.Channel.Parameters(Channel).Fs;
-chirp = (nbdata.FICRate==0);
-if chirp
-    fc = meta.Channel.Parameters(Channel).F0Ref + nbdata.DFIC0;
-    freq = linspace(fc-sampling_rate/2,fc+sampling_rate/2,meta.Data.Channel(Channel).NumSamples);
-else
-    freq = meta.Channel.Parameters(Channel).F0Ref + nbdata.DFIC0 + ...
-        ((0:(double(meta.Data.Channel(Channel).NumSamples)-1))' * nbdata.FICRate / sampling_rate);
+if isfield(meta.Data,'NumCRSDChannels')  % Check raw first if available
+    if ~meta.Channel.Parameters(Channel).DemodFixed
+        error('MPSD:VARIABLE_DEMOD','Fixed demod required.');
+    end
+    [~, nbdata] = reader_obj.read_raw(1,1,Channel);
+    NumChannels = meta.Data.NumCRSDChannels;
+    sampling_rate =  meta.Channel.Parameters(Channel).Fs;
+    chirp = (nbdata.FICRate==0);
+    if chirp
+        fc = meta.Channel.Parameters(Channel).F0Ref + nbdata.DFIC0;
+        freq = linspace(fc-sampling_rate/2,fc+sampling_rate/2,meta.Data.Channel(Channel).NumSamples);
+    else
+        freq = meta.Channel.Parameters(Channel).F0Ref + nbdata.DFIC0 + ...
+            ((0:(double(meta.Data.Channel(Channel).NumSamples)-1))' * nbdata.FICRate / sampling_rate);
+    end
+elseif isfield(meta.Data,'NumCPHDChannels')
+    if ~meta.Channel.FXFixedCPHD
+        error('MPSD:VARIABLE_FX','Fixed FX parameters are required.');
+    end
+    [~, nbdata] = reader_obj.read_cphd(1,1,Channel);
+    NumChannels = meta.Data.NumCPHDChannels;
+    freq = linspace(nbdata.SC0,nbdata.SC0+nbdata.SCSS*double(NumSamples-1),...
+        meta.Data.Channel(Channel).NumSamples);
 end
 
 % Handle defaults for optional input arguments
@@ -126,15 +136,22 @@ for i=1:num_pulse_sets
         waitbar((i-1)/num_pulse_sets, wbh, sprintf('Processing Pulse Step %d of %d',i,num_pulse_sets));
     end
     current_pulse_block = pulse_indices((i-1)*PULSE_BLOCK_SIZE+1:min(i*PULSE_BLOCK_SIZE,end));
-    pulses = reader_obj.read_raw(current_pulse_block,1:NumSamples,Channel);
-    pulses = bsxfun(@minus, pulses, mean(pulses)); % Remove bias per pulse
-    if chirp
-        pulses = fft(pulses);
-        pulses(1,:) = pulses(2,:);
-        pulses = fftshift(pulses);
-        pulses(1,:) = pulses(2,:);
-    else % stretch
-        pulses = deskew_rvp(pulses, sampling_rate, nbdata.FICRate);
+    if isfield(meta.Data,'NumCRSDChannels')  % Check raw first if available
+        pulses = reader_obj.read_raw(current_pulse_block,1:NumSamples,Channel);
+        pulses = bsxfun(@minus, pulses, mean(pulses)); % Remove bias per pulse
+        if chirp
+            pulses = fft(pulses);
+            pulses(1,:) = pulses(2,:);
+            pulses = fftshift(pulses);
+            pulses(1,:) = pulses(2,:);
+        else % stretch
+            pulses = deskew_rvp(pulses, sampling_rate, nbdata.FICRate);
+        end
+    elseif isfield(meta.Data,'NumCPHDChannels')
+        pulses = reader_obj.read_cphd(current_pulse_block,1:NumSamples,Channel);
+        if ~strcmp(meta.Global.DomainType, 'FX')
+            pulses = fft(pulses);
+        end
     end
     TotPow = TotPow + sum(abs(pulses).^2,2);
 end
@@ -153,7 +170,7 @@ mpsd_out(mpsd_out <= 0) = 1;
 mpsd_out = 10.*log10(mpsd_out);
 mpsd_out = mpsd_out - min(mpsd_out); % Scale such that min is at 0 dB
 
-if chirp %get rid of any DC bias
+if isfield(meta.Data,'NumCRSDChannels') && chirp %get rid of any DC bias
     CenterSample = round(NumSamples/2);
     mpsd_out(CenterSample-5:CenterSample+5) = (mpsd_out(CenterSample-5)+mpsd_out(CenterSample+5))/2;
 end

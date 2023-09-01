@@ -237,11 +237,11 @@ end
 % measured off of a file header length of 0.) In the pathological case, it
 % could take 5 times through this loop for all the string length of the
 % file header to percolate through to all of the offsets.
-fileheader_string = '';
-while fileheader.XML_BLOCK_BYTE_OFFSET ~= (length(fileheader_string) + 2)
-    fileheader.XML_BLOCK_BYTE_OFFSET = length(fileheader_string) + 2;
+fileheader_string = create_fh_string(struct(), format);
+while fileheader.XML_BLOCK_BYTE_OFFSET ~= (length(fileheader_string))
+    fileheader.XML_BLOCK_BYTE_OFFSET = length(fileheader_string);
     fileheader.PVP_BLOCK_BYTE_OFFSET = fileheader.XML_BLOCK_BYTE_OFFSET + fileheader.XML_BLOCK_SIZE + 2;
-    fileheader.SIGNAL_BLOCK_BYTE_OFFSET = fileheader.PVP_BLOCK_BYTE_OFFSET + fileheader.PVP_BLOCK_SIZE + 2;
+    fileheader.SIGNAL_BLOCK_BYTE_OFFSET = fileheader.PVP_BLOCK_BYTE_OFFSET + fileheader.PVP_BLOCK_SIZE;
     fileheader_string = create_fh_string(fileheader, format);
 end
 
