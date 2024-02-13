@@ -205,6 +205,9 @@ else
     [fname, path] = uiputfile( {'*.kml','KML Files (*.kml)'},'Save KML File',[pathstr fnameNoExt]);
 end
 if ~fname, return; end; % Cancel was pressed
+if ~isfield(meta, 'CollectionInfo') && isfield(meta, 'CollectionID')
+    meta.CollectionInfo = meta.CollectionID;  % CPHD
+end
 k = kml(meta.CollectionInfo.CoreName); %create an kmltoolbox object
 k.filename = fullfile(path, fname);
 k.zip = get(handles.GroundOverlayCheck,'Value'); % Only zip if we have overlay images

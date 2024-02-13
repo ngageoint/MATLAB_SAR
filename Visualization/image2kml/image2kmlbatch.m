@@ -68,7 +68,7 @@ for i=1:length(image_data)
         new_args = p.Unmatched;
         new_args.overlay_filename = sprintf('Overlay_%d.png',i); % Will be put in same directory where KML is
         add_sar_2kml(k,fullfile(imagedirname,image_data(i).filename),new_args);
-    elseif isfield(image_data(i).meta,'VectorParameters') % Phase history file
+    elseif isfield(image_data(i).meta,'PVP') % Phase history file
         add_sar_2kml(k,fullfile(imagedirname,image_data(i).filename),p.Unmatched);
     else
         add_sar_2kml(k,image_data(i).meta,p.Unmatched);

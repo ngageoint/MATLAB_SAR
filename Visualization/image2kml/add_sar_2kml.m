@@ -45,6 +45,7 @@ if isstruct(sicd_meta) && isfield(sicd_meta,'get_meta') % open_reader object
     end
     if exist('read_fun','var') % Convert CPHD to SICD format
         [ignore, vbmeta] = read_fun('all',[]);
+        cphd_meta = sicd_meta;
         sicd_meta = meta2sicd_cphdx(sicd_meta, vbmeta);
     end
 end
@@ -90,18 +91,32 @@ if isfield(sicd_meta,'ImageData') % True for all complex data, but not phase his
 else
     corner_latlon = []; % No corners for phase history
 end
-if isempty(corner_latlon) && isfield(sicd_meta,'GeoData') && ...% Sensor model not available
-        isfield(sicd_meta.GeoData,'ImageCorners')&&...
-        isfield(sicd_meta.GeoData.ImageCorners,'ICP')
-    corner_latlon = zeros(2,4);
-    corner_latlon(1,:) = [sicd_meta.GeoData.ImageCorners.ICP.FRFC.Lat, ...
-        sicd_meta.GeoData.ImageCorners.ICP.FRLC.Lat, ...
-        sicd_meta.GeoData.ImageCorners.ICP.LRLC.Lat, ...
-        sicd_meta.GeoData.ImageCorners.ICP.LRFC.Lat];
-    corner_latlon(2,:) = [sicd_meta.GeoData.ImageCorners.ICP.FRFC.Lon, ...
-        sicd_meta.GeoData.ImageCorners.ICP.FRLC.Lon, ...
-        sicd_meta.GeoData.ImageCorners.ICP.LRLC.Lon, ...
-        sicd_meta.GeoData.ImageCorners.ICP.LRFC.Lon];
+if isempty(corner_latlon)
+    if isfield(sicd_meta,'GeoData') && ...% Sensor model not available
+            isfield(sicd_meta.GeoData,'ImageCorners')&&...
+            isfield(sicd_meta.GeoData.ImageCorners,'ICP')
+        corner_latlon = zeros(2,4);
+        corner_latlon(1,:) = [sicd_meta.GeoData.ImageCorners.ICP.FRFC.Lat, ...
+            sicd_meta.GeoData.ImageCorners.ICP.FRLC.Lat, ...
+            sicd_meta.GeoData.ImageCorners.ICP.LRLC.Lat, ...
+            sicd_meta.GeoData.ImageCorners.ICP.LRFC.Lat];
+        corner_latlon(2,:) = [sicd_meta.GeoData.ImageCorners.ICP.FRFC.Lon, ...
+            sicd_meta.GeoData.ImageCorners.ICP.FRLC.Lon, ...
+            sicd_meta.GeoData.ImageCorners.ICP.LRLC.Lon, ...
+            sicd_meta.GeoData.ImageCorners.ICP.LRFC.Lon];
+    elseif exist('cphd_meta','var') && isfield(cphd_meta, 'SceneCoordinates') && ...
+            isfield(cphd_meta.SceneCoordinates,'ImageAreaCornerPoints') && ...
+            isfield(cphd_meta.SceneCoordinates.ImageAreaCornerPoints,'IACP')
+        corner_latlon = zeros(2,4);
+        corner_latlon(1,:) = [cphd_meta.SceneCoordinates.ImageAreaCornerPoints.IACP(1).Lat, ...
+            cphd_meta.SceneCoordinates.ImageAreaCornerPoints.IACP(2).Lat, ...
+            cphd_meta.SceneCoordinates.ImageAreaCornerPoints.IACP(3).Lat, ...
+            cphd_meta.SceneCoordinates.ImageAreaCornerPoints.IACP(4).Lat];
+        corner_latlon(2,:) = [cphd_meta.SceneCoordinates.ImageAreaCornerPoints.IACP(1).Lon, ...
+            cphd_meta.SceneCoordinates.ImageAreaCornerPoints.IACP(2).Lon, ...
+            cphd_meta.SceneCoordinates.ImageAreaCornerPoints.IACP(3).Lon, ...
+            cphd_meta.SceneCoordinates.ImageAreaCornerPoints.IACP(4).Lon];
+    end
 end
 if ~isempty(corner_latlon)
     % Draw image bounding box
@@ -318,6 +333,24 @@ elseif isfield(sicd_meta,'GeoData')&&isfield(sicd_meta.GeoData,'SCP')
     GRPLons = sicd_meta.GeoData.SCP.LLH.Lon;
     GRPAlts = sicd_meta.GeoData.SCP.LLH.HAE;
     GRPCOA = [GRPLats GRPLons GRPAlts];
+elseif exist('vbmeta','var') && isfield(vbmeta,'SRPPos')
+    A = repmat(vbmeta.TxTime, [1 numel(times)]);
+    [~, time_ind] = min(abs(A-times));
+    [~, coa_time_ind] = min(abs(vbmeta.TxTime-coatime));
+    GRPPosX = vbmeta.SRPPos(time_ind,1);
+    GRPPosY = vbmeta.SRPPos(time_ind,2);
+    GRPPosZ = vbmeta.SRPPos(time_ind,3);
+    GRPCOAX = vbmeta.SRPPos(coa_time_ind,1);
+    GRPCOAY = vbmeta.SRPPos(coa_time_ind,2);
+    GRPCOAZ = vbmeta.SRPPos(coa_time_ind,3);
+    %convert to LLA
+    for i=1:length(GRPPosX)
+        pos_lla = ecf_to_geodetic([GRPPosX(i) GRPPosY(i) GRPPosZ(i)]);
+        GRPLats(i) = pos_lla(1);
+        GRPLons(i) = pos_lla(2);
+        GRPAlts(i) = pos_lla(3);
+    end
+    GRPCOA = ecf_to_geodetic([GRPCOAX GRPCOAY GRPCOAZ]);
 end
 
 if exist('ARPLats','var')

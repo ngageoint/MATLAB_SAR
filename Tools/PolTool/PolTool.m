@@ -353,8 +353,11 @@ RxEllipticity = str2double(get(handles.RxEllipticity,'String'));
 if strcmp(handles.TxPol,'HV') || strcmp(handles.TxPol,'VH')
     [coefs(1,1,1),coefs(1,1,2),coefs(1,1,3),coefs(1,1,4)] = ...
     ComputePolCoeff(TxAngle,RxAngle,TxEllipticity,RxEllipticity);
-else
+elseif strcmp(handles.TxPol,'H')
     [coefs(1,1,1),coefs(1,1,2)] = ...
+    ComputePolCoeff(TxAngle,RxAngle,TxEllipticity,RxEllipticity);
+elseif strcmp(handles.TxPol,'V')
+    [~,~,coefs(1,1,1),coefs(1,1,2)] = ...
     ComputePolCoeff(TxAngle,RxAngle,TxEllipticity,RxEllipticity);
 end
 
