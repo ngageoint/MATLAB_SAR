@@ -142,6 +142,7 @@ end
 
 %% Specify reader object methods-- close() method already defined above
 readerobj.read_cphd = @read_data;
+readerobj.get_nbdata = @get_nbdata;
 readerobj.get_meta = @() xml_meta;
 
     %% READ_CPHD method of this reader object
@@ -181,6 +182,17 @@ readerobj.get_meta = @() xml_meta;
                 nbdata.(fldnames{fn_index}) = vbp_all(channel).(fldnames{fn_index})(pulse_indices,:);
             end
         end
+    end
+
+    % Function to get only the nbdata
+    function [nbdata] = get_nbdata(pulse_indices, channel)
+        if (nargin<2)
+            channel = 1;
+        end
+        if (nargin<1)
+            pulse_indices = 'all';
+        end
+        [~, nbdata] = read_data(pulse_indices, [], channel);
     end
 
     %% Function for reading data with memory mapped files
