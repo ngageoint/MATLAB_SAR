@@ -60,7 +60,10 @@ set(gcf,'DeleteFcn',@file_cleanup); % Close open files on closing
             end
             disp(['Predicted noise (dB): ' num2str(pred_noise, 4)]);
             data = ro{frame_number(i)}.read_chip(azlimits, rnglimits);
-            meas_noise = 10*log10(sum(double(data(:)).*conj(double(data(:))))/numel(data));  
+            sf = sicd_polyval2d(...
+                sicd_meta.Radiometric.SigmaZeroSFPoly, ...
+                mean(azlimits), mean(rnglimits), sicd_meta);
+            meas_noise = 10*log10(sf*sum(double(data(:)).*conj(double(data(:))))/numel(data));
             disp(['Measured noise (dB): ' num2str(meas_noise, 4)]);
         end
     end
