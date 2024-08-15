@@ -33,6 +33,9 @@ for i=1:schema_root.getLength
     end
 end
 
+if ~isfield(schema_struct, "groups")
+  schema_struct.groups = [];
+end
 schema_struct.types = recursfun_group(schema_struct.types, schema_struct.groups);
 
     function output_struct = recursfun_schema(current_node)
