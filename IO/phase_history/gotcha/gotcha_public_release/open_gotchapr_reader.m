@@ -123,11 +123,12 @@ cphd_meta.ReferenceGeometry.SRP.ECF.Z = SRP_ECEF(3);
 
 %% Setup reader object
 readerobj.read_cphd=@read_data; 
+readerobj.get_nbdata =@get_nbdata;
 readerobj.get_meta=@() cphd_meta;
 readerobj.close=@() 1;
 
     %% Functino for READ_CPHD method
-    function [wbvectors, nbdata] = read_data(pulse_indices, sample_indices, channels)
+    function [wbvectors, nbdata] = read_data(pulse_indices, sample_indices)
         % Parse input parameters
         if (nargin<1)||strcmpi(pulse_indices,'all')
             pulse_indices=1:cphd_meta.Data.Channel.NumVectors;
@@ -147,6 +148,17 @@ readerobj.close=@() 1;
         for i=1:length(nb_fieldnames)
             nbdata.(nb_fieldnames{i}) = all_nbdata.(nb_fieldnames{i})(pulse_indices,:);
         end
+    end
+
+    % Function to get only the nbdata
+    function [nbdata] = get_nbdata(pulse_indices, channel)
+        if (nargin<2)
+            channel = 1;
+        end
+        if (nargin<1)
+            pulse_indices = 'all';
+        end
+        [~, nbdata] = read_data(pulse_indices, [], channel);
     end
 
 end
