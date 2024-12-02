@@ -20,8 +20,10 @@ for i=1:schema_root.getLength
     child=schema_root.item(i-1);
     if child.getNodeType == child.ELEMENT_NODE
         switch char(child.getNodeName)
-            case {'xs:simpleType','xs:complexType','xs:group'} % Type definitions
+            case {'xs:simpleType','xs:complexType'} % Type definitions
                 schema_struct.types.(char(child.getAttribute('name'))) = recursfun_schema(child);
+            case 'xs:group'
+                schema_struct.groups.(char(child.getAttribute('name'))) = recursfun_schema(child);
             case 'xs:element' % Master node (should be onle one)
                 schema_struct.master = recursfun_schema(child);
             otherwise
@@ -30,6 +32,11 @@ for i=1:schema_root.getLength
         end
     end
 end
+
+if ~isfield(schema_struct, "groups")
+  schema_struct.groups = [];
+end
+schema_struct.types = recursfun_group(schema_struct.types, schema_struct.groups);
 
     function output_struct = recursfun_schema(current_node)
         output_struct = struct();
@@ -49,8 +56,11 @@ end
                         output_struct = recursfun_schema(current_child); % Adds any attributes
                         output_struct.SCHEMA_type = char(current_child.getAttribute('base'));
                     case {'xs:simpleType','xs:simpleContent',...
-                            'xs:complexType','xs:complexContent','xs:group'}
+                            'xs:complexType','xs:complexContent'}
                         output_struct = recursfun_schema(current_child);
+                    case {'xs:group'}
+                        ref_str = char(current_child.getAttribute('ref'));
+                        output_struct.(ref_str).SCHEMA_group = ref_str;
                     case {'xs:sequence','xs:choice','xs:all'}
                         output_struct = setstructfields(output_struct, recursfun_schema(current_child));
                     case {'xs:attribute'}
@@ -71,6 +81,40 @@ end
                         error('SICDXML2STRUCT:UNRECOGNIZED_NODE_TYPE','Unrecognized node type in XSD.');
                 end
             end
+        end
+    end
+end
+
+function current_struct = recursfun_group(current_struct, groups)
+    fields = fieldnames(current_struct);
+    for f = 1:numel(fields)
+        current_field = current_struct.(fields{f});
+        if isfield(current_field, "SCHEMA_group")
+            current_struct = assign_group(current_struct, groups);
+            current_struct = recursfun_group(current_struct);
+            break;
+        elseif isfield(current_field, "SCHEMA_type") || isfield(current_field, "SCHEMA_attributes")
+            continue;
+        elseif ~isempty(fieldnames(current_field))
+            current_struct.(fields{f}) = recursfun_group(current_field, groups);
+        else
+            error('SICDXML2STRUCT:UNEXPECTED_SCHEMA_TYPE','Unexpected schema node type in XSD after initial parsing.')
+        end        
+    end
+end
+
+function new_struct = assign_group(current_struct, groups)
+    fields = fieldnames(current_struct);
+    for f = 1:numel(fields)
+        current_field = current_struct.(fields{f});
+        if isfield(current_field, "SCHEMA_group")
+            current_group = groups.(current_field.SCHEMA_group);
+            group_fields = fieldnames(current_group);
+            for gf = 1:numel(group_fields)
+              new_struct.(group_fields{gf}) = current_group.(group_fields{gf});
+            end
+        else
+            new_struct.(fields{f}) = current_field;
         end
     end
 end
