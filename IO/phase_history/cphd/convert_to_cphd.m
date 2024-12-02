@@ -146,7 +146,6 @@ wb_handle = waitbar(0,['Converting to ' format]);
 cphd_fid = fopen(output_cphd_file,'w','b'); % All CPHD must be big-endian
 xml_string = sicdstruct2xml(cphd_meta, 'file_type', format, 'inc_class_attributes', false);
 fh_struct = write_cphd_fileheader(cphd_fid, cphd_meta, format, numel(xml_string));
-fwrite(cphd_fid,sprintf('\f\n'),'char');
 fwrite(cphd_fid,sprintf('%s\f\n',xml_string),'char');
 
 % Vector-based metadata is actually positioned before CPHD data in the

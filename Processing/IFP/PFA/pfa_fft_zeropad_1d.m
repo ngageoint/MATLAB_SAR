@@ -14,7 +14,7 @@ start_index = floor(size(data,1)*(sample_rate-1)/2);
 
 zeropad(start_index + (1:size(data,1)),:) = data; % Insert data into zeropad
 zeropad = ifftshift(zeropad, 1); % Move DC (center point) to index 1
-data = fftshift(ifft(zeropad,[],1),1); % Actual FFT
+data = fftshift(fft(zeropad,[],1),1); % Actual FFT
 
 end
 
